@@ -7,7 +7,7 @@ export async function GET() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getUser()
   if (!data.user) {
-    return NextResponse.redirect(new URL('/login', process.env.APP_URL ?? 'http://localhost:3000'))
+    return NextResponse.redirect(new URL('/login', process.env.APP_URL ?? 'http://127.0.0.1:3000'))
   }
 
   const state = randomBytes(16).toString('hex')

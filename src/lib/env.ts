@@ -12,7 +12,7 @@ const schema = z.object({
   SUPABASE_SECRET_KEY: optionalStr,
   SPOTIFY_CLIENT_ID: optionalStr,
   SPOTIFY_CLIENT_SECRET: optionalStr,
-  APP_URL: z.string().url().default('http://localhost:3000'),
+  APP_URL: z.string().url().default('http://127.0.0.1:3000'),
   TOKEN_ENCRYPTION_KEY: z
     .string()
     .transform((v) => (v === '' ? undefined : v))
@@ -25,7 +25,7 @@ export const env = schema.parse({
   SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY ?? '',
   SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID ?? '',
   SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ?? '',
-  APP_URL: process.env.APP_URL ?? 'http://localhost:3000',
+  APP_URL: process.env.APP_URL ?? 'http://127.0.0.1:3000',
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY ?? '',
 })
 
