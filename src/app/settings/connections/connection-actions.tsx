@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-export function ConnectionActions({ connected }: { connected: boolean }) {
+export function GmailActions({ connected }: { connected: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
@@ -11,8 +11,8 @@ export function ConnectionActions({ connected }: { connected: boolean }) {
   if (!connected) {
     return (
       <a
-        href="/api/spotify/connect"
-        className="rounded-lg bg-[#1db954] text-black font-bold text-sm px-4 py-2 hover:bg-[#1ed760] transition"
+        href="/api/gmail/connect"
+        className="rounded-lg bg-[#ea4335] text-white font-bold text-sm px-4 py-2 hover:bg-[#d63a2c] transition"
       >
         連携する
       </a>
@@ -21,10 +21,10 @@ export function ConnectionActions({ connected }: { connected: boolean }) {
 
   async function sync() {
     setSyncMsg('同期中…')
-    const res = await fetch('/api/spotify/sync', { method: 'POST' })
+    const res = await fetch('/api/gmail/sync', { method: 'POST' })
     const json = await res.json().catch(() => ({}))
     if (res.ok) {
-      setSyncMsg(`+${json.added ?? 0}件`)
+      setSyncMsg(`+${json.added ?? 0}件 / 失敗 ${json.failed ?? 0}`)
       startTransition(() => router.refresh())
     } else {
       setSyncMsg(`失敗: ${json.error ?? res.status}`)
