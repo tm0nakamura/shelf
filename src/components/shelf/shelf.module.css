@@ -1,0 +1,326 @@
+/* ============================================================
+   Shelf — ported from outputs/lockscreen-shelf-v2.html
+   ============================================================ */
+
+.phone {
+  width: 100%;
+  max-width: 430px;
+  min-height: 932px;
+  position: relative;
+  border-radius: 32px;
+  overflow: hidden;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+
+/* ============== HEADER ============== */
+.header {
+  padding: 24px 18px 10px;
+  background: var(--header-bg);
+  flex-shrink: 0;
+  position: relative;
+}
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--avatar);
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--avatar-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.name {
+  flex: 1;
+  color: var(--header-fg);
+}
+.handle {
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.url {
+  font-weight: 500;
+  font-size: 10px;
+  opacity: 0.55;
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+.theme {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--theme-dot);
+  border: 2px solid var(--header-fg);
+  flex-shrink: 0;
+}
+
+.statsRow {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  color: var(--header-fg);
+}
+.stat .v {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.stat .l {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.6;
+  margin-top: 4px;
+  letter-spacing: 0.04em;
+}
+
+.catRow {
+  margin-top: 12px;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.catRow::-webkit-scrollbar {
+  display: none;
+}
+.cat {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  position: relative;
+  padding-bottom: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: var(--header-fg);
+}
+.catIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: background 200ms;
+}
+.catLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  opacity: 0.6;
+  transition: opacity 200ms;
+}
+.catActive::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 2px;
+  background: var(--header-fg);
+  border-radius: 1px;
+}
+.catActive .catIcon {
+  background: var(--header-fg);
+  color: var(--header-bg-solid);
+}
+.catActive .catLabel {
+  opacity: 1;
+}
+
+/* ============== BODY ============== */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 16px;
+}
+
+.tasteGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tasteCell {
+  aspect-ratio: 0.92;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  background: #ddd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.tasteCell .genre {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.32);
+  padding: 3px 8px;
+  border-radius: 4px;
+  backdrop-filter: blur(6px);
+}
+.tasteCell .lbl {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  color: white;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+.tasteCell .a {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+  margin-bottom: 2px;
+}
+.tasteCell .t {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.tasteCell .cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* empty cell — connection CTA */
+.tasteCellEmpty {
+  background: var(--empty-bg);
+  border: 1.5px dashed var(--empty-border);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 200ms, border-color 200ms, transform 200ms;
+}
+.tasteCellEmpty:hover {
+  background: var(--empty-bg-hover);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.tasteCellEmpty .genre {
+  background: transparent;
+  color: var(--text-mute);
+  padding-left: 0;
+  padding-right: 0;
+  font-weight: 700;
+}
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+}
+.plus {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  box-shadow: 0 4px 12px var(--accent-shadow);
+}
+.cta {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.svc {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-mute);
+  text-align: center;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+/* ============== Themes ============== */
+.themeAmi {
+  --bg: #fff7f9;
+  --header-bg: linear-gradient(180deg, #ff3d7f 0%, #ff7a9e 100%);
+  --header-bg-solid: #ff3d7f;
+  --header-fg: white;
+  --avatar: linear-gradient(135deg, #ffd23f, #ff9a76);
+  --avatar-text: #1a1614;
+  --theme-dot: linear-gradient(135deg, #ffd23f, #ff3d7f);
+  --text: #0a0a0a;
+  --text-mute: #b29991;
+  --accent: #ff3d7f;
+  --accent-fg: white;
+  --accent-shadow: rgba(255, 61, 127, 0.32);
+  --empty-bg: rgba(255, 61, 127, 0.04);
+  --empty-bg-hover: rgba(255, 61, 127, 0.10);
+  --empty-border: rgba(255, 61, 127, 0.28);
+}
+.themeHaru {
+  --bg: #fcf6e9;
+  --header-bg: linear-gradient(180deg, #2a1f10 0%, #4a3520 100%);
+  --header-bg-solid: #2a1f10;
+  --header-fg: #f5e8d0;
+  --avatar: linear-gradient(135deg, #c9a36a, #6b4226);
+  --avatar-text: white;
+  --theme-dot: linear-gradient(135deg, #f5e8d0, #6b4226);
+  --text: #2a1f10;
+  --text-mute: #a89978;
+  --accent: #6b4226;
+  --accent-fg: #f5e8d0;
+  --accent-shadow: rgba(107, 66, 38, 0.32);
+  --empty-bg: rgba(107, 66, 38, 0.04);
+  --empty-bg-hover: rgba(107, 66, 38, 0.10);
+  --empty-border: rgba(107, 66, 38, 0.28);
+}
+.themeRen {
+  --bg: #0a0e18;
+  --header-bg: linear-gradient(180deg, #050a14 0%, #1a1430 100%);
+  --header-bg-solid: #050a14;
+  --header-fg: #2dd4ff;
+  --avatar: linear-gradient(135deg, #ff3dc8, #2dd4ff);
+  --avatar-text: #050a14;
+  --theme-dot: linear-gradient(135deg, #2dd4ff, #ff3dc8);
+  --text: white;
+  --text-mute: rgba(255, 255, 255, 0.45);
+  --accent: #2dd4ff;
+  --accent-fg: #050a14;
+  --accent-shadow: rgba(45, 212, 255, 0.32);
+  --empty-bg: rgba(45, 212, 255, 0.04);
+  --empty-bg-hover: rgba(45, 212, 255, 0.10);
+  --empty-border: rgba(45, 212, 255, 0.28);
+}

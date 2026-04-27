@@ -1,36 +1,133 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# shelf-jp
 
-## Getting Started
+消費コンテンツの足跡を、自動で集めて棚にする日本向け Web サービス（Phase 1 — Spotify OAuth + 認証 + 棚UI）。
 
-First, run the development server:
+## スタック
+
+- Next.js 16 (App Router, Turbopack) + React 19.2 + TypeScript
+- Tailwind CSS 4 + CSS Modules（棚UI）
+- Supabase（Postgres + Auth + RLS）
+- Spotify Web API（user-read-recently-played + user-library-read）
+
+## Phase 1 で動くもの
+
+| FR | 機能 |
+|---|---|
+| FR-1 | メールマジックリンク + Google OAuth ログイン |
+| FR-2 | Spotify OAuth + 再生履歴 (50件) + Saved Tracks (200件) |
+| FR-3 | 同期ログ (sync_logs)、エラー時 status=error（指数バックオフは Phase 1.5） |
+| FR-4 | `/u/[username]` で「ぜんぶ」ビュー (2x3 grid)、未連携セルは CTA |
+| FR-5 | ヘッダー stats (曲/ライブ/本/視聴) + カテゴリタブ |
+
+## セットアップ手順
+
+### 1. 依存
+
+```bash
+npm install
+```
+
+### 2. Supabase プロジェクトを作る
+
+[supabase.com](https://supabase.com/dashboard) で新規プロジェクト → **Settings → API** から取得:
+
+- `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
+- `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+
+### 3. マイグレーション
+
+Supabase ダッシュボードの SQL Editor で `supabase/migrations/0001_initial.sql` を実行。または Supabase CLI で:
+
+```bash
+supabase db push
+```
+
+### 4. Google OAuth (Supabase Auth)
+
+Supabase Dashboard → **Authentication → Providers → Google** を有効化。Google Cloud Console で OAuth クライアントを作り、Authorized redirect URI に `https://YOUR_PROJECT.supabase.co/auth/v1/callback` を登録。
+
+### 5. Spotify Developer App
+
+[developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) で新規アプリ作成。
+
+- **Redirect URIs** に `http://localhost:3000/api/spotify/callback` を登録
+- Client ID / Client Secret を取得
+
+### 6. .env.local
+
+```bash
+cp .env.example .env.local
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# 出力された 64 文字を TOKEN_ENCRYPTION_KEY に
+```
+
+`.env.local` を埋める:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SPOTIFY_CLIENT_ID=...
+SPOTIFY_CLIENT_SECRET=...
+APP_URL=http://localhost:3000
+TOKEN_ENCRYPTION_KEY=<64 hex>
+```
+
+### 7. 起動
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+→ http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 主なルート
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| ルート | 役割 |
+|---|---|
+| `/` | ランディング（ログイン済なら自分の棚へリダイレクト） |
+| `/login` | Magic Link / Google ログイン |
+| `/auth/callback` | Supabase Auth コールバック |
+| `/u/[username]` | 棚（ぜんぶビュー + カテゴリタブ） |
+| `/settings/connections` | 連携状態の確認 + 即時同期ボタン |
+| `/api/spotify/connect` | Spotify OAuth 開始 |
+| `/api/spotify/callback` | Spotify OAuth コールバック → 初回同期 |
+| `/api/spotify/sync` (POST) | 手動同期 |
 
-## Learn More
+## ディレクトリ
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├ app/
+│  ├ api/spotify/{connect,callback,sync}/route.ts
+│  ├ auth/callback/route.ts
+│  ├ login/{page,login-form}.tsx
+│  ├ settings/connections/{page,connection-actions}.tsx
+│  ├ u/[username]/page.tsx
+│  └ layout.tsx, page.tsx, globals.css
+├ components/shelf/
+│  ├ Shelf.tsx
+│  └ shelf.module.css
+├ lib/
+│  ├ supabase/{server,browser,admin}.ts
+│  ├ spotify/{auth,api,sync}.ts
+│  ├ env.ts
+│  └ crypto.ts
+└ proxy.ts                  # Next 16 では旧 middleware.ts はこの名前
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+supabase/migrations/0001_initial.sql
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## セキュリティメモ
 
-## Deploy on Vercel
+- `connections.credentials_encrypted` は AES-256-GCM で暗号化（`bytea` 列に保存）。`TOKEN_ENCRYPTION_KEY` を漏らすとトークンが復号できる
+- `service_role` キーは絶対にクライアント側に出さない (`src/lib/supabase/admin.ts` は `import 'server-only'` 済み)
+- RLS により `items` / `connections` などはユーザー本人しか書けない
+- `users` と `items` は **公開棚を実現するため select のみ全ユーザー許可**。フォロー機能や非公開棚を入れるときは ALTER POLICY する
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 次のフェーズ
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Phase 2: Gmail OAuth + Amazon Schema.org JSON-LD パース、個別カテゴリビュー詳細
+- Phase 3: Share Sheet 受信（モバイルアプリ／PWA）+ ロック画面 PNG 書き出し
+- Phase 4: 月次 Recap + 試用 + Go/NoGo 判定
