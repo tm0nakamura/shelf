@@ -29,11 +29,13 @@ npm install
 
 ### 2. Supabase プロジェクトを作る
 
-[supabase.com](https://supabase.com/dashboard) で新規プロジェクト → **Settings → API** から取得:
+[supabase.com](https://supabase.com/dashboard) で新規プロジェクト → **Settings → API Keys**（新パネル）から取得:
 
-- `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-- `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+- `Project URL`（Settings → API） → `NEXT_PUBLIC_SUPABASE_URL`
+- `Publishable key` (`sb_publishable_…`) → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `Secret key` (`sb_secret_…`) → `SUPABASE_SECRET_KEY`
+
+> 旧 `anon` / `service_role` (JWT) もまだ使えるが、新キーの方がローテーション・失効が個別にできて推奨。
 
 ### 3. マイグレーション
 
@@ -66,8 +68,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
 APP_URL=http://localhost:3000
@@ -122,7 +124,7 @@ supabase/migrations/0001_initial.sql
 ## セキュリティメモ
 
 - `connections.credentials_encrypted` は AES-256-GCM で暗号化（`bytea` 列に保存）。`TOKEN_ENCRYPTION_KEY` を漏らすとトークンが復号できる
-- `service_role` キーは絶対にクライアント側に出さない (`src/lib/supabase/admin.ts` は `import 'server-only'` 済み)
+- `Secret key` (`sb_secret_…`) は絶対にクライアント側に出さない (`src/lib/supabase/admin.ts` は `import 'server-only'` 済み)
 - RLS により `items` / `connections` などはユーザー本人しか書けない
 - `users` と `items` は **公開棚を実現するため select のみ全ユーザー許可**。フォロー機能や非公開棚を入れるときは ALTER POLICY する
 
