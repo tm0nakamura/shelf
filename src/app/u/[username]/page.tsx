@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Shelf, type Category, type ShelfData, type ShelfItem } from '@/components/shelf/Shelf'
 
@@ -8,13 +9,18 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
   const { username } = await params
   const supabase = await createClient()
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('id, username, display_name, theme')
-    .eq('username', username)
-    .maybeSingle()
+  const [{ data: profile }, { data: userRes }] = await Promise.all([
+    supabase
+      .from('users')
+      .select('id, username, display_name, theme')
+      .eq('username', username)
+      .maybeSingle(),
+    supabase.auth.getUser(),
+  ])
 
   if (!profile) notFound()
+
+  const isOwner = userRes.user?.id === profile.id
 
   // Fetch all items, then pick a featured one per category.
   // Phase 1: featured = most recently consumed.
@@ -62,8 +68,18 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
   }
 
   return (
-    <div className="min-h-dvh bg-[#1a1614] py-6 sm:py-12">
+    <div className="min-h-dvh bg-[#1a1614] py-6 sm:py-12 relative">
       <Shelf data={data} />
+      {isOwner && (
+        <Link
+          href="/items/new"
+          aria-label="アイテムを追加"
+          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex items-center gap-2 rounded-full bg-[#ff3d7f] hover:bg-[#ff5a92] text-white font-bold px-5 py-3 shadow-[0_8px_24px_rgba(255,61,127,0.45)] transition"
+        >
+          <span className="text-xl leading-none">+</span>
+          <span className="text-sm">追加</span>
+        </Link>
+      )}
     </div>
   )
 }
