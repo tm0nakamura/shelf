@@ -220,6 +220,49 @@
   object-fit: cover;
 }
 
+/* filled cell with a real cover image — image is contained with breathing
+   room so book covers / albums look like covers (not stretched fills) */
+.tasteCellWithCover {
+  background: white;
+  display: flex;
+  flex-direction: column;
+}
+.coverBox {
+  flex: 1;
+  min-height: 0;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+.coverImg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
+}
+.tasteCellWithCover .lbl {
+  position: static;
+  padding: 6px 10px 9px;
+  background: white;
+  color: var(--text);
+  text-shadow: none;
+}
+.tasteCellWithCover .a {
+  color: var(--text-mute);
+  opacity: 1;
+}
+.tasteCellWithCover .t {
+  color: var(--text);
+  -webkit-line-clamp: 2;
+}
+.tasteCellWithCover .genre {
+  z-index: 2;
+}
+
 /* empty cell — connection CTA */
 .tasteCellEmpty {
   background: var(--empty-bg);

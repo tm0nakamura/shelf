@@ -127,7 +127,10 @@ function amazonHandler(u: URL, html: string, meta: GenericMeta): KnownDomainResu
 
   // --- Image: og:image is usually Amazon's logo. The product image lives
   // in id=landingImage with either data-old-hires or data-a-dynamic-image.
-  const image = extractAmazonImage(html)
+  // Fall back to meta.image (microlink path) when html is empty.
+  let image = extractAmazonImage(html)
+  if (!image && meta.image) image = meta.image
+  if (image) image = upgradeAmazonImageUrl(image)
 
   // --- Author / creator
   const authorMatch = html.match(
@@ -204,6 +207,16 @@ function cleanAmazonTitle(raw: string): string | null {
     return parts[0]
   }
   return t || null
+}
+
+/**
+ * Strip Amazon's `_SL75_` / `_SX300_` / `_AC_UY...` thumbnail suffix so we
+ * get the full-resolution image. The original `m.media-amazon.com/images/I/<id>.jpg`
+ * URL is served at the highest available resolution.
+ */
+function upgradeAmazonImageUrl(url: string): string {
+  if (!/\bm\.media-amazon\.com\/images\//i.test(url)) return url
+  return url.replace(/\._[A-Z][A-Z0-9,]*_\./i, '.')
 }
 
 function extractAmazonImage(html: string): string | null {
