@@ -30,10 +30,10 @@ export default async function ConnectionsPage({
   const gmail = connections?.find((c) => c.provider === 'gmail')
 
   return (
-    <main className="min-h-dvh bg-[#1a1614] text-white px-6 py-12">
+    <main className="min-h-dvh bg-[#14110f] text-white px-6 py-12">
       <div className="max-w-xl mx-auto">
-        <div className="flex items-baseline justify-between mb-8">
-          <h1 className="text-2xl font-black">連携</h1>
+        <div className="flex items-baseline justify-between mb-10">
+          <h1 className="font-serif text-4xl font-light italic">連携</h1>
           {profile?.username && (
             <Link
               href={`/u/${profile.username}`}

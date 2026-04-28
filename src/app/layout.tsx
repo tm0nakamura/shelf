@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Noto_Sans_JP } from 'next/font/google'
+import { Inter, Noto_Sans_JP, Fraunces, Noto_Serif_JP } from 'next/font/google'
 import './globals.css'
 
 const inter = Inter({
@@ -10,6 +10,19 @@ const inter = Inter({
 
 const noto = Noto_Sans_JP({
   variable: '--font-noto-jp',
+  subsets: ['latin'],
+  weight: ['400', '500', '700', '900'],
+})
+
+const fraunces = Fraunces({
+  variable: '--font-fraunces',
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  style: ['normal', 'italic'],
+})
+
+const notoSerif = Noto_Serif_JP({
+  variable: '--font-noto-serif-jp',
   subsets: ['latin'],
   weight: ['400', '500', '700', '900'],
 })
@@ -27,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${inter.variable} ${noto.variable} h-full antialiased`}
+      className={`${inter.variable} ${noto.variable} ${fraunces.variable} ${notoSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

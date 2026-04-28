@@ -76,7 +76,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={status === 'sending' || !email}
-        className="w-full rounded-xl bg-[#ff3d7f] py-3 font-bold disabled:opacity-50 hover:bg-[#ff5a92] transition"
+        className="w-full rounded-xl bg-[#b53d5f] py-3 font-medium tracking-wide disabled:opacity-50 hover:bg-[#c54a6e] transition"
       >
         {status === 'sending' ? '送信中…' : 'マジックリンクを送る'}
       </button>

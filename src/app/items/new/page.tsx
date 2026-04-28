@@ -15,10 +15,10 @@ export default async function NewItemPage() {
     .maybeSingle()
 
   return (
-    <main className="min-h-dvh bg-[#1a1614] text-white px-6 py-10">
+    <main className="min-h-dvh bg-[#14110f] text-white px-6 py-10">
       <div className="max-w-md mx-auto">
-        <div className="flex items-baseline justify-between mb-6">
-          <h1 className="text-2xl font-black">アイテムを追加</h1>
+        <div className="flex items-baseline justify-between mb-8">
+          <h1 className="font-serif text-3xl font-light italic">アイテムを追加</h1>
           {profile?.username && (
             <Link
               href={`/u/${profile.username}`}

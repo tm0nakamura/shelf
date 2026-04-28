@@ -74,16 +74,16 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
   }
 
   return (
-    <div className="min-h-dvh bg-[#1a1614] py-6 sm:py-12 relative">
+    <div className="min-h-dvh bg-[#14110f] py-6 sm:py-12 relative">
       <Shelf data={data} />
       {isOwner && (
         <Link
           href="/items/new"
           aria-label="アイテムを追加"
-          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex items-center gap-2 rounded-full bg-[#ff3d7f] hover:bg-[#ff5a92] text-white font-bold px-5 py-3 shadow-[0_8px_24px_rgba(255,61,127,0.45)] transition"
+          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex items-center gap-2.5 rounded-full bg-[#b53d5f] hover:bg-[#c54a6e] text-[#fcf3e8] font-serif italic px-6 py-3 shadow-[0_10px_30px_-8px_rgba(181,61,95,0.55),0_4px_10px_-2px_rgba(0,0,0,0.3)] transition"
         >
-          <span className="text-xl leading-none">+</span>
-          <span className="text-sm">追加</span>
+          <span className="text-lg leading-none -mt-px">+</span>
+          <span className="text-sm tracking-wide">追加</span>
         </Link>
       )}
     </div>

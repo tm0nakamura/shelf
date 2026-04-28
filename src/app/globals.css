@@ -2,14 +2,24 @@
 
 @theme inline {
   --font-sans: var(--font-inter), var(--font-noto-jp), system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), var(--font-noto-serif-jp), Georgia, serif;
 }
 
 html, body {
   font-family: var(--font-noto-jp), var(--font-inter), system-ui, sans-serif;
 }
 
-/* dark surface as our default landing/auth canvas */
+.font-serif {
+  font-family: var(--font-fraunces), var(--font-noto-serif-jp), Georgia, serif;
+}
+
+/* warm-dark surface — slightly less harsh than pure #000 */
 body {
-  background: #1a1614;
+  background: #14110f;
   color: white;
+}
+
+/* selection */
+::selection {
+  background: rgba(255, 255, 255, 0.18);
 }

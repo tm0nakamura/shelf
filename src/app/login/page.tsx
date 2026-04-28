@@ -18,12 +18,12 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="min-h-dvh flex items-center justify-center bg-[#1a1614] text-white px-6">
+    <main className="min-h-dvh flex items-center justify-center bg-[#14110f] text-white px-6">
       <div className="w-full max-w-sm">
-        <div className="mb-8">
-          <h1 className="text-3xl font-black tracking-tight">shelf</h1>
-          <p className="mt-2 text-sm text-white/60">
-            日々触れたコンテンツの足跡を、自動で集めて棚にする。
+        <div className="mb-10">
+          <h1 className="font-serif text-5xl font-light italic tracking-tight">shelf</h1>
+          <p className="mt-3 text-sm text-white/55 leading-relaxed">
+            日々触れたコンテンツの足跡を、<br />自動で集めて棚にする。
           </p>
         </div>
         <LoginForm />
