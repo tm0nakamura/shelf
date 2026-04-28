@@ -29,12 +29,11 @@ export default async function JumpplusSettingsPage() {
         </div>
 
         <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-xs leading-relaxed mb-6">
-          <p className="font-bold mb-1.5 text-yellow-200">⚠ リスク承知の機能</p>
+          <p className="font-bold mb-1.5 text-yellow-200">⚠ 規約グレー</p>
           <ul className="list-disc list-inside space-y-1 text-white/75">
-            <li>Jump+ の <strong>ログイン情報をサーバーに保管</strong>します（AES-256-GCM 暗号化、TOKEN_ENCRYPTION_KEY 必須）。漏洩したパスワードを他で使い回している場合は **必ず Jump+ 専用にして**ください。</li>
-            <li>Jump+ 利用規約 13条1項(1) は「個人的利用以外」を禁止。サーバー側自動アクセスは規約上グレー。<strong>アカウント凍結のリスクを承知の上で</strong>使ってください。</li>
-            <li>Vercel(AWS) の IP が bot 判定で弾かれると動きません。その場合素直に動かないので、ローカル運用 (scripts/scrape) に切替えてください。</li>
-            <li>2FA / Captcha が出たログインフローはこの実装では突破できません。</li>
+            <li>Jump+ 利用規約 13条1項(1)「個人的利用以外」を禁止。サーバ側の自動アクセスはグレー。<strong>アカウント凍結のリスクを承知の上で</strong>使ってください。</li>
+            <li>パスワードは保管しません。Cookie のみを暗号化（AES-256-GCM）して保存します。漏洩しても他サービスへの影響はありませんが、Jump+ アカウントへ第三者がアクセスできる時間 = Cookie の有効期限内です。</li>
+            <li>Vercel(AWS) の IP が bot 判定で弾かれた場合、Cookie が有効でも /mypage が拒否されることがあります。</li>
           </ul>
         </div>
 

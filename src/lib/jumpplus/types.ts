@@ -2,15 +2,13 @@
  * Persisted credential blob for the Jump+ connection. Encrypted with
  * TOKEN_ENCRYPTION_KEY before being written to connections.credentials_encrypted.
  *
- * Threat model the user accepted (see /settings/jumpplus): if the DB and the
- * encryption key both leak, the password is recoverable. Do not reuse passwords.
+ * No password is stored — the user pastes a Cookie header value from
+ * their already-authenticated browser. When the cookies expire the
+ * connection turns "expired" and the user re-pastes.
  */
 export type JumpplusCredentials = {
-  email: string
-  password: string
-  /** session cookies snapshotted from the last successful login. */
   cookies: SerializedCookie[]
-  /** unix epoch (seconds) when cookies were last refreshed. */
+  /** unix epoch (seconds) when cookies were saved. */
   cookies_at: number
 }
 

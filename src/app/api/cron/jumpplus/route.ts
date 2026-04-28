@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   for (const conn of connections ?? []) {
     try {
       const r = await syncJumpplus(conn.id)
-      results.push({ connection_id: conn.id, ok: true, detail: `+${r.added} (refreshed=${r.refreshed_cookies})` })
+      results.push({ connection_id: conn.id, ok: true, detail: `+${r.added}` })
     } catch (e) {
       results.push({
         connection_id: conn.id,

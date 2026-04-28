@@ -2,25 +2,19 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { encryptJson } from '@/lib/crypto'
-import { loginToJumpplus } from '@/lib/jumpplus/auth'
+import { parseCookieHeader, verifyCookies } from '@/lib/jumpplus/auth'
 import type { JumpplusCredentials } from '@/lib/jumpplus/types'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
 
 const Body = z.object({
-  email: z.string().email().max(256),
-  password: z.string().min(1).max(256),
+  cookies: z.string().min(8).max(20000),
 })
 
 /**
- * POST /api/jumpplus/connect — verifies a Jump+ login by spinning up a
- * headless Chromium, then stores email + password + the resulting
- * cookies (all encrypted) so the daily cron can keep syncing.
- *
- * Risk surface — read /settings/jumpplus before enabling: password is
- * stored on the server even though encrypted; account ban risk per
- * Jump+ ToS; Vercel IPs may get bot-blocked at any time.
+ * POST /api/jumpplus/connect — accepts a raw `Cookie:` header value the
+ * user pasted from their browser DevTools. We parse, validate against
+ * /mypage, and persist on success. No password ever touches the server.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -39,19 +33,23 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let cookies
-  try {
-    cookies = await loginToJumpplus({ email: body.email, password: body.password })
-  } catch (e) {
+  const cookies = parseCookieHeader(body.cookies)
+  if (cookies.length === 0) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'login_failed' },
-      { status: 502 },
+      { error: 'no_cookies_parsed', detail: 'Cookie ヘッダから 1 つも値が取れませんでした' },
+      { status: 400 },
+    )
+  }
+
+  const ok = await verifyCookies(cookies)
+  if (!ok) {
+    return NextResponse.json(
+      { error: 'cookies_invalid', detail: '/mypage が拒否されました。Jump+ にログイン中のブラウザでコピーした Cookie か確認してください' },
+      { status: 400 },
     )
   }
 
   const creds: JumpplusCredentials = {
-    email: body.email,
-    password: body.password,
     cookies,
     cookies_at: Math.floor(Date.now() / 1000),
   }
@@ -80,7 +78,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userRes.user.id,
         provider: 'jumpplus',
-        auth_type: 'password',
+        auth_type: 'cookie',
         credentials_encrypted: encrypted,
         status: 'active',
       })

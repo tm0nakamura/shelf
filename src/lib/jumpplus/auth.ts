@@ -1,132 +1,62 @@
 import 'server-only'
-import chromium from '@sparticuz/chromium-min'
-import { chromium as playwright, type Page } from 'playwright-core'
 import type { SerializedCookie } from './types'
 
 /**
- * Pinned Chromium binary URL — must match the installed
- * @sparticuz/chromium-min version. Bumping the npm dep without bumping
- * this URL produces a "Failed to launch the browser process" error.
+ * Parse a raw `Cookie:` header value (as the user copies it out of
+ * their browser DevTools) into the structured cookie list we persist.
+ *
+ *   "name1=value1; name2=value2"  →  [ { name, value, domain, path } ]
+ *
+ * Domain is filled in defensively so /scrape can still target Jump+
+ * even though a request-side Cookie header doesn't carry one.
  */
-const CHROMIUM_PACK_URL =
-  'https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar'
+export function parseCookieHeader(header: string): SerializedCookie[] {
+  const out: SerializedCookie[] = []
+  const trimmed = header.trim().replace(/^Cookie:\s*/i, '')
+  if (!trimmed) return out
+
+  for (const raw of trimmed.split(/;\s*/)) {
+    if (!raw) continue
+    const eq = raw.indexOf('=')
+    if (eq === -1) continue
+    const name = raw.slice(0, eq).trim()
+    const value = raw.slice(eq + 1).trim()
+    if (!name) continue
+    out.push({
+      name,
+      value,
+      domain: '.shonenjumpplus.com',
+      path: '/',
+    })
+  }
+  return out
+}
 
 /**
- * Headless login flow for shonenjumpplus.com.
- *
- * Returns the authenticated session cookies on success. Throws on:
- *   - 2FA / CAPTCHA challenge (we don't have a path through these)
- *   - bot-mitigation page (Vercel IP blocked)
- *   - bad credentials (login form re-renders with error)
- *
- * Selectors are best-effort and may need adjustment when Jump+'s login
- * markup changes. The function never persists the password — callers
- * decide what to do with both the input and the returned cookies.
+ * Try to fetch /mypage with the supplied cookies. Returns true if Jump+
+ * accepted the session (200 + we didn't end up on /login). Used by the
+ * connect endpoint to validate a paste before persisting it, and by
+ * sync to detect cookie expiry.
  */
-export async function loginToJumpplus(args: {
-  email: string
-  password: string
-}): Promise<SerializedCookie[]> {
-  const browser = await playwright.launch({
-    args: [...chromium.args, '--lang=ja-JP'],
-    executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
-    headless: true,
-  })
+export async function verifyCookies(cookies: SerializedCookie[]): Promise<boolean> {
+  const cookieHeader = cookies
+    .filter((c) => /shonenjumpplus\.com$/.test(c.domain.replace(/^\./, '')))
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ')
+  if (!cookieHeader) return false
 
-  try {
-    const ctx = await browser.newContext({
-      viewport: { width: 1280, height: 900 },
-      locale: 'ja-JP',
-      userAgent:
+  const res = await fetch('https://shonenjumpplus.com/mypage', {
+    headers: {
+      Cookie: cookieHeader,
+      'User-Agent':
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    })
-    const page = await ctx.newPage()
-
-    await page.goto('https://shonenjumpplus.com/login', {
-      waitUntil: 'domcontentloaded',
-      timeout: 20000,
-    })
-
-    // Bail if Cloudflare / bot-mitigation page is served.
-    await assertNoBotChallenge(page)
-
-    // Fill the form. Jump+ uses standard email + password fields. Adjust
-    // selectors if their markup drifts.
-    const emailInput = page.locator(
-      'input[type="email"], input[name="email"], input[id*="email" i]',
-    ).first()
-    const passwordInput = page.locator(
-      'input[type="password"], input[name="password"]',
-    ).first()
-    await emailInput.fill(args.email, { timeout: 10000 })
-    await passwordInput.fill(args.password, { timeout: 10000 })
-
-    const submit = page.locator(
-      'button[type="submit"], input[type="submit"], button:has-text("ログイン")',
-    ).first()
-    await Promise.all([
-      page.waitForURL(
-        (url) => !url.toString().includes('/login'),
-        { timeout: 15000 },
-      ).catch(() => {}),
-      submit.click(),
-    ])
-
-    // If we're still on the login page, login failed.
-    if (page.url().includes('/login')) {
-      const errText = await page
-        .locator('[class*="error" i], [role="alert"]')
-        .first()
-        .textContent({ timeout: 1000 })
-        .catch(() => null)
-      throw new Error(`jumpplus_login_failed: ${errText?.trim() || 'still on /login'}`)
-    }
-
-    // Touch /mypage to confirm the session is real.
-    await page.goto('https://shonenjumpplus.com/mypage', {
-      waitUntil: 'domcontentloaded',
-      timeout: 15000,
-    })
-    if (page.url().includes('/login')) {
-      throw new Error('jumpplus_login_failed: redirected back to /login after submit')
-    }
-
-    const raw = await ctx.cookies()
-    return raw.map(toSerializable)
-  } finally {
-    await browser.close().catch(() => {})
-  }
-}
-
-async function assertNoBotChallenge(page: Page): Promise<void> {
-  const title = (await page.title().catch(() => '')) || ''
-  const bodyText = (await page.locator('body').innerText().catch(() => '')) || ''
-  if (
-    /just a moment|cloudflare|access denied|attention required/i.test(title) ||
-    /just a moment|cloudflare|access denied|attention required/i.test(bodyText.slice(0, 500))
-  ) {
-    throw new Error('jumpplus_bot_challenge: Cloudflare or similar bot-mitigation triggered')
-  }
-}
-
-function toSerializable(c: {
-  name: string
-  value: string
-  domain: string
-  path: string
-  expires: number
-  httpOnly: boolean
-  secure: boolean
-  sameSite?: 'Strict' | 'Lax' | 'None'
-}): SerializedCookie {
-  return {
-    name: c.name,
-    value: c.value,
-    domain: c.domain,
-    path: c.path,
-    expires: c.expires > 0 ? c.expires : undefined,
-    httpOnly: c.httpOnly,
-    secure: c.secure,
-    sameSite: c.sameSite,
-  }
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'ja,en-US;q=0.7,en;q=0.3',
+    },
+    redirect: 'follow',
+    cache: 'no-store',
+  })
+  if (!res.ok) return false
+  if (/\/(?:login|signin)/i.test(res.url)) return false
+  return true
 }
