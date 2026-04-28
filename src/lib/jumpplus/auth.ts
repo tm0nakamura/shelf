@@ -51,7 +51,7 @@ export function parseCookieHeader(header: string): SerializedCookie[] {
 }
 
 /**
- * Try to fetch /mypage with the supplied cookies. Returns true if Jump+
+ * Try to fetch /my with the supplied cookies. Returns true if Jump+
  * accepted the session (200 + we didn't end up on /login). Used by the
  * connect endpoint to validate a paste before persisting it, and by
  * sync to detect cookie expiry.

@@ -8,7 +8,7 @@ const BOOKMARKLETS = [
     label: '少年ジャンプ+ → shelf',
     description:
       'ジャンプ+の マイページ / お気に入り を開いた状態でクリック → 「漫画」カテゴリにアイテムが入ります。',
-    where: 'shonenjumpplus.com/mypage',
+    where: 'shonenjumpplus.com/my',
   },
 ] as const
 

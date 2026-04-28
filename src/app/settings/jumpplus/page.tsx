@@ -33,7 +33,7 @@ export default async function JumpplusSettingsPage() {
           <ul className="list-disc list-inside space-y-1 text-white/75">
             <li>Jump+ 利用規約 13条1項(1)「個人的利用以外」を禁止。サーバ側の自動アクセスはグレー。<strong>アカウント凍結のリスクを承知の上で</strong>使ってください。</li>
             <li>パスワードは保管しません。Cookie のみを暗号化（AES-256-GCM）して保存します。漏洩しても他サービスへの影響はありませんが、Jump+ アカウントへ第三者がアクセスできる時間 = Cookie の有効期限内です。</li>
-            <li>Vercel(AWS) の IP が bot 判定で弾かれた場合、Cookie が有効でも /mypage が拒否されることがあります。</li>
+            <li>Vercel(AWS) の IP が bot 判定で弾かれた場合、Cookie が有効でも /my が拒否されることがあります。</li>
           </ul>
         </div>
 

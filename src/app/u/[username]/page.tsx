@@ -79,6 +79,13 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
       {isOwner && (
         <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex items-center gap-2">
           <Link
+            href="/settings/connections"
+            aria-label="連携・設定"
+            className="rounded-full border border-white/15 hover:border-white/30 hover:bg-white/5 text-white/70 hover:text-white text-xs font-medium tracking-wide px-4 py-3 backdrop-blur-md bg-black/20 transition"
+          >
+            設定
+          </Link>
+          <Link
             href="/items/manage"
             aria-label="アイテム管理"
             className="rounded-full border border-white/15 hover:border-white/30 hover:bg-white/5 text-white/70 hover:text-white text-xs font-medium tracking-wide px-4 py-3 backdrop-blur-md bg-black/20 transition"

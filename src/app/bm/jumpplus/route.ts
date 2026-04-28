@@ -6,7 +6,7 @@ import { env } from '@/lib/env'
  *
  * Loaded as `<script src="/bm/jumpplus?t=<token>">` from a bookmarklet
  * the user has saved. The script runs in the Jump+ origin, scrapes the
- * current /mypage DOM, and POSTs the harvested items to /api/import on
+ * current /my DOM, and POSTs the harvested items to /api/import on
  * shelf-jp using the token from the query string.
  *
  * The token is baked into the response body so the page-side script
@@ -108,7 +108,7 @@ function renderScript(args: { token: string; apiUrl: string }) {
   });
 
   if (unique.length === 0) {
-    banner('shelf-jp: 取れる作品が見つかりません。マイページか「お気に入り」で実行してみてください', 'err');
+    banner('shelf-jp: 取れる作品が見つかりません。/my ページで実行してみてください', 'err');
     return;
   }
 

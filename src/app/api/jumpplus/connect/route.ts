@@ -14,7 +14,7 @@ const Body = z.object({
 /**
  * POST /api/jumpplus/connect — accepts a raw `Cookie:` header value the
  * user pasted from their browser DevTools. We parse, validate against
- * /mypage, and persist on success. No password ever touches the server.
+ * /my, and persist on success. No password ever touches the server.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   const ok = await verifyCookies(cookies)
   if (!ok) {
     return NextResponse.json(
-      { error: 'cookies_invalid', detail: '/mypage が拒否されました。Jump+ にログイン中のブラウザでコピーした Cookie か確認してください' },
+      { error: 'cookies_invalid', detail: '/my が拒否されました。Jump+ にログイン中のブラウザでコピーした Cookie か確認してください' },
       { status: 400 },
     )
   }

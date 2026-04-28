@@ -105,12 +105,12 @@ export function JumpplusForm({ hasExisting }: { hasExisting: boolean }) {
           <li>
             普段使っているブラウザで{' '}
             <a
-              href="https://shonenjumpplus.com/mypage"
+              href="https://shonenjumpplus.com/my"
               target="_blank"
               rel="noreferrer"
               className="underline hover:text-white"
             >
-              shonenjumpplus.com/mypage
+              shonenjumpplus.com/my
             </a>
             {' '}を開く（ログインしておく）
           </li>
@@ -141,7 +141,7 @@ export function JumpplusForm({ hasExisting }: { hasExisting: boolean }) {
           </summary>
           <ol className="list-decimal list-inside space-y-1.5 mt-2 ml-3 text-white/60">
             <li><strong className="text-white">Network</strong> タブを開いてページを再読み込み</li>
-            <li>一覧から <code>mypage</code> リクエストをクリック</li>
+            <li>一覧から <code>my</code> リクエストをクリック</li>
             <li>右の <strong>Headers</strong> 欄を下にスクロール → <strong>Request Headers</strong> の <strong>Cookie:</strong> 行をコピー</li>
           </ol>
         </details>
