@@ -2,26 +2,44 @@ import 'server-only'
 import type { SerializedCookie } from './types'
 
 /**
- * Parse a raw `Cookie:` header value (as the user copies it out of
- * their browser DevTools) into the structured cookie list we persist.
+ * Parse cookie pairs the user pasted out of DevTools.
  *
- *   "name1=value1; name2=value2"  →  [ { name, value, domain, path } ]
+ * Accepts whatever shape the user copy-pasted:
+ *   - Network tab Cookie header:    "name1=value1; name2=value2"
+ *   - Application tab one-per-line: "name1=value1\nname2=value2"
+ *   - Tab-separated tabular paste:  "name1\tvalue1\nname2\tvalue2"
  *
- * Domain is filled in defensively so /scrape can still target Jump+
- * even though a request-side Cookie header doesn't carry one.
+ * Strips a leading "Cookie:" prefix when present. Domain is filled in
+ * defensively so /scrape can still target Jump+ even though a request-
+ * side Cookie header doesn't carry one.
  */
 export function parseCookieHeader(header: string): SerializedCookie[] {
   const out: SerializedCookie[] = []
+  const seen = new Set<string>()
   const trimmed = header.trim().replace(/^Cookie:\s*/i, '')
   if (!trimmed) return out
 
-  for (const raw of trimmed.split(/;\s*/)) {
-    if (!raw) continue
-    const eq = raw.indexOf('=')
-    if (eq === -1) continue
-    const name = raw.slice(0, eq).trim()
-    const value = raw.slice(eq + 1).trim()
-    if (!name) continue
+  for (const raw of trimmed.split(/[;\n\r]+/)) {
+    const piece = raw.trim()
+    if (!piece) continue
+
+    // Try `name=value`, then `name<TAB>value` (Application tab tabular paste).
+    let name = ''
+    let value = ''
+    const eq = piece.indexOf('=')
+    const tab = piece.indexOf('\t')
+    if (eq > 0) {
+      name = piece.slice(0, eq).trim()
+      value = piece.slice(eq + 1).trim()
+    } else if (tab > 0) {
+      name = piece.slice(0, tab).trim()
+      value = piece.slice(tab + 1).trim()
+    } else {
+      continue
+    }
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+
     out.push({
       name,
       value,

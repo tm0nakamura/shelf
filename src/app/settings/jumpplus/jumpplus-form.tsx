@@ -96,20 +96,61 @@ export function JumpplusForm({ hasExisting }: { hasExisting: boolean }) {
         </div>
       )}
 
-      <details className="rounded-xl border border-white/10 bg-white/[0.03] p-5 mb-5 text-xs leading-relaxed">
+      <details className="rounded-xl border border-white/10 bg-white/[0.03] p-5 mb-5 text-xs leading-relaxed" open>
         <summary className="cursor-pointer font-bold tracking-[0.18em] uppercase text-white/70">
-          Cookie の取り出し方
+          Cookie の取り出し方（おすすめ：Application タブ）
         </summary>
-        <ol className="list-decimal list-inside space-y-2 mt-4 text-white/70">
-          <li>普段使っているブラウザで <a href="https://shonenjumpplus.com/mypage" target="_blank" rel="noreferrer" className="underline hover:text-white">https://shonenjumpplus.com/mypage</a> を開いてログイン状態を確認</li>
-          <li>F12（または右クリック → 検証）で DevTools を開く</li>
-          <li><strong className="text-white">Network</strong> タブ → ページを再読み込み（Ctrl/Cmd + R）</li>
-          <li>左の一覧から <code className="text-white">mypage</code> や <code className="text-white">shonenjumpplus.com</code> 宛のリクエストをクリック</li>
-          <li>右ペイン <strong className="text-white">Headers</strong> → <strong className="text-white">Request Headers</strong> から <strong className="text-white">Cookie:</strong> 行の値を全部コピー</li>
-          <li>下の欄に貼り付けて「保存」</li>
+
+        <ol className="list-decimal list-inside space-y-2 mt-4 text-white/75">
+          <li>
+            普段使っているブラウザで{' '}
+            <a
+              href="https://shonenjumpplus.com/mypage"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-white"
+            >
+              shonenjumpplus.com/mypage
+            </a>
+            {' '}を開く（ログインしておく）
+          </li>
+          <li>
+            <kbd className="text-white">F12</kbd>{' '}
+            （Mac: <kbd className="text-white">Cmd + Option + I</kbd>）で DevTools を開く
+          </li>
+          <li>
+            上のタブから <strong className="text-white">Application</strong>
+            （Firefox は <strong className="text-white">ストレージ</strong>、Safari は <strong className="text-white">ストレージ</strong>） を選ぶ。
+            タブが見えなければ DevTools の右上 <kbd>≫</kbd> をクリックすると出る
+          </li>
+          <li>
+            左サイドバー → <strong className="text-white">Cookies</strong> → <strong className="text-white">https://shonenjumpplus.com</strong> をクリック
+          </li>
+          <li>
+            右に <strong className="text-white">Name / Value</strong> の表が並ぶ。
+            <strong className="text-white">表の中をどこか1セルクリック → Cmd/Ctrl + A で全選択 → Cmd/Ctrl + C でコピー</strong>
+          </li>
+          <li>
+            下の欄に貼り付けて「保存」
+          </li>
         </ol>
-        <p className="mt-3 text-white/40">
-          Cookie は AES-256-GCM で暗号化して保存されます。期限切れになると同期が止まり、ここに「expired」と表示されるので再貼り付けしてください（ジャンプ+ の session は通常 ~30 日）。
+
+        <details className="mt-4 ml-2">
+          <summary className="cursor-pointer text-white/50 hover:text-white">
+            別ルート：Network タブから取る
+          </summary>
+          <ol className="list-decimal list-inside space-y-1.5 mt-2 ml-3 text-white/60">
+            <li><strong className="text-white">Network</strong> タブを開いてページを再読み込み</li>
+            <li>一覧から <code>mypage</code> リクエストをクリック</li>
+            <li>右の <strong>Headers</strong> 欄を下にスクロール → <strong>Request Headers</strong> の <strong>Cookie:</strong> 行をコピー</li>
+          </ol>
+        </details>
+
+        <p className="mt-4 text-white/40">
+          表 / 一行 / セミコロン区切り — どの形式で貼っても OK です。
+          Cookie は AES-256-GCM で暗号化して保存。期限切れ（〜30日）になると status が
+          <code className="text-yellow-300/80"> expired </code>
+          になるので再貼り付けしてください。
         </p>
       </details>
 
