@@ -19,6 +19,10 @@ const schema = z.object({
     .string()
     .transform((v) => (v === '' ? undefined : v))
     .pipe(z.string().regex(/^[0-9a-f]{64}$/).optional()),
+  /** Shared bearer token for the local-scraper → /api/import path. */
+  IMPORT_API_TOKEN: optionalStr,
+  /** UUID of the user whose shelf the imported items belong to. */
+  IMPORT_USER_ID: optionalStr,
 })
 
 export const env = schema.parse({
@@ -31,6 +35,8 @@ export const env = schema.parse({
   SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ?? '',
   APP_URL: process.env.APP_URL ?? 'http://127.0.0.1:3000',
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY ?? '',
+  IMPORT_API_TOKEN: process.env.IMPORT_API_TOKEN ?? '',
+  IMPORT_USER_ID: process.env.IMPORT_USER_ID ?? '',
 })
 
 export const SPOTIFY_REDIRECT_URI = `${env.APP_URL}/api/spotify/callback`

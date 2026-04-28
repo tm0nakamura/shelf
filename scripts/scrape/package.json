@@ -1,0 +1,15 @@
+{
+  "name": "shelf-jp-scrape",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-only Playwright scrapers that push to shelf-jp's /api/import.",
+  "scripts": {
+    "install-browsers": "playwright install chromium",
+    "jumpplus": "node --env-file=.env jumpplus.mjs",
+    "jumpplus:login": "node --env-file=.env jumpplus.mjs --login"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}
