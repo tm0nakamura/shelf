@@ -1,7 +1,15 @@
 import 'server-only'
-import chromium from '@sparticuz/chromium'
+import chromium from '@sparticuz/chromium-min'
 import { chromium as playwright, type Page } from 'playwright-core'
 import type { SerializedCookie } from './types'
+
+/**
+ * Pinned Chromium binary URL — must match the installed
+ * @sparticuz/chromium-min version. Bumping the npm dep without bumping
+ * this URL produces a "Failed to launch the browser process" error.
+ */
+const CHROMIUM_PACK_URL =
+  'https://github.com/Sparticuz/chromium/releases/download/v148.0.0/chromium-v148.0.0-pack.x64.tar'
 
 /**
  * Headless login flow for shonenjumpplus.com.
@@ -21,7 +29,7 @@ export async function loginToJumpplus(args: {
 }): Promise<SerializedCookie[]> {
   const browser = await playwright.launch({
     args: [...chromium.args, '--lang=ja-JP'],
-    executablePath: await chromium.executablePath(),
+    executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
     headless: true,
   })
 
