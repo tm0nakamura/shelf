@@ -5,6 +5,25 @@ import { env } from '@/lib/env'
 
 export const maxDuration = 60
 
+/** CORS headers for cross-origin POST from bookmarklets. */
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS })
+}
+
+function corsJson(body: unknown, init: ResponseInit = {}) {
+  return NextResponse.json(body, {
+    ...init,
+    headers: { ...CORS_HEADERS, ...(init.headers ?? {}) },
+  })
+}
+
 const CATEGORY_VALUES = ['music', 'book', 'film', 'comic', 'live_event', 'game'] as const
 
 const ImportItem = z.object({
@@ -35,7 +54,7 @@ const Body = z.object({
  */
 export async function POST(request: NextRequest) {
   if (!env.IMPORT_API_TOKEN || !env.IMPORT_USER_ID) {
-    return NextResponse.json(
+    return corsJson(
       { error: 'import_api_not_configured' },
       { status: 503 },
     )
@@ -43,14 +62,14 @@ export async function POST(request: NextRequest) {
 
   const auth = request.headers.get('authorization') ?? ''
   if (auth !== `Bearer ${env.IMPORT_API_TOKEN}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    return corsJson({ error: 'unauthorized' }, { status: 401 })
   }
 
   let body
   try {
     body = Body.parse(await request.json())
   } catch (e) {
-    return NextResponse.json(
+    return corsJson(
       { error: 'invalid_body', detail: e instanceof Error ? e.message : String(e) },
       { status: 400 },
     )
@@ -76,7 +95,7 @@ export async function POST(request: NextRequest) {
     .upsert(rows, { onConflict: 'user_id,source,external_id', count: 'exact' })
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return corsJson({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, count: count ?? rows.length })
+  return corsJson({ ok: true, count: count ?? rows.length })
 }
