@@ -67,7 +67,9 @@ async function fetchAuthed(url: string, cookieHeader: string): Promise<string | 
 
 /**
  * Walk the /my HTML for <a href="/series/..."> / <a href="/episode/...">
- * cards. Crude but matches the same shape we use in the bookmarklet.
+ * cards. We require an <img> inside the anchor so plain navigation links
+ * ("連載一覧", footer "ジャンプSQ" etc.) get filtered out — only the
+ * card-shaped reading-history / favorites entries make it through.
  */
 function extractFromHtml(html: string): JumpplusItem[] {
   const out: JumpplusItem[] = []
@@ -76,6 +78,11 @@ function extractFromHtml(html: string): JumpplusItem[] {
   while ((m = anchorRe.exec(html)) !== null) {
     const href = m[1]
     const inner = m[2]
+
+    // Reading-history / favorites entries always have a cover thumb.
+    // Plain text navigation anchors don't, so skip them.
+    if (!/<img\s/i.test(inner)) continue
+
     const seriesMatch = href.match(/\/series\/([^/?#]+)/)
     const episodeMatch = href.match(/\/episode\/([^/?#]+)/)
     const externalId = seriesMatch?.[1] ?? episodeMatch?.[1]
