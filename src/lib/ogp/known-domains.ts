@@ -30,13 +30,13 @@ type GenericMeta = {
   type: string | null
 }
 
-export function resolveKnownDomain(url: string, html: string, _meta: GenericMeta): KnownDomainResult {
+export function resolveKnownDomain(url: string, html: string, meta: GenericMeta): KnownDomainResult {
   const u = new URL(url)
   const host = u.hostname.toLowerCase().replace(/^www\./, '')
 
   // Books — major retailers / catalog sites
   if (host.endsWith('amazon.co.jp') || host.endsWith('amazon.com')) {
-    return amazonHandler(u, html)
+    return amazonHandler(u, html, meta)
   }
   if (host.endsWith('books.rakuten.co.jp') || host.endsWith('rakuten.co.jp')) {
     return { category: guessFromRakutenUrl(u) }
@@ -112,14 +112,18 @@ export function resolveKnownDomain(url: string, html: string, _meta: GenericMeta
   return {}
 }
 
-function amazonHandler(u: URL, html: string): KnownDomainResult {
+function amazonHandler(u: URL, html: string, meta: GenericMeta): KnownDomainResult {
   const path = u.pathname.toLowerCase()
   const search = u.search.toLowerCase()
 
   // --- Title: Amazon's bot-served HTML returns og:title = "Amazon.co.jp"
   // for almost every product, but the <title> tag still has the real
-  // product title. Pull from <title> and strip the boilerplate prefix.
-  const title = extractAmazonTitle(html)
+  // product title. Pull from <title> first; when html is empty (microlink
+  // fallback path) clean the supplied meta.title instead.
+  let title: string | null = extractAmazonTitle(html)
+  if (!title && meta.title) {
+    title = cleanAmazonTitle(meta.title)
+  }
 
   // --- Image: og:image is usually Amazon's logo. The product image lives
   // in id=landingImage with either data-old-hires or data-a-dynamic-image.
@@ -160,23 +164,41 @@ function amazonHandler(u: URL, html: string): KnownDomainResult {
   }
 }
 
+
 function extractAmazonTitle(html: string): string | null {
   const m = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
   if (!m) return null
-  let t = m[1].trim()
-  t = decodeHtmlEntitiesLite(t)
+  return cleanAmazonTitle(decodeHtmlEntitiesLite(m[1].trim()))
+}
 
-  // Common forms:
-  //   "Amazon.co.jp: 商品名 ePub | 著者名: 本"
-  //   "Amazon.co.jp: 商品名: 著者名: 本"
-  //   "Amazon | 商品名"
-  // Strip leading "Amazon.co.jp:" / "Amazon |"
-  t = t.replace(/^\s*Amazon\.(?:co\.jp|com)\s*[:|]\s*/i, '')
-  t = t.replace(/^\s*Amazon\s*[:|]\s*/i, '')
+/**
+ * Take an Amazon page title (from <title>, og:title, or microlink) and
+ * strip Amazon-imposed prefixes/suffixes so we get just the product name.
+ */
+function cleanAmazonTitle(raw: string): string | null {
+  let t = raw.trim()
+  if (!t) return null
 
-  // Some pages put the category and author after the title with " : " separators.
-  // Heuristic: pick the longest segment between " : " | " | " separators.
-  const parts = t.split(/\s*[:|]\s*/).map((s) => s.trim()).filter(Boolean)
+  // "Amazon.co.jp: ..." / "Amazon.com | ..." / "Amazon : ..."
+  t = t.replace(/^\s*Amazon\.(?:co\.jp|com)\s*[:|｜]\s*/i, '')
+  t = t.replace(/^\s*Amazon\s*[:|｜]\s*/i, '')
+
+  // Trailing breadcrumbs Amazon appends after the product name:
+  //   ": Japanese Books" / ": 本" / ": Software" / ": Music" / ": Kindle store"
+  // Repeat the strip a couple of times to peel off layered breadcrumbs.
+  for (let i = 0; i < 3; i++) {
+    const before = t
+    t = t.replace(
+      /\s*[:|｜]\s*(?:Japanese Books|Books|本|コミック|Manga|Software|Music|CD|Kindle Store|Kindle ストア|電子書籍|Video Games|ゲーム|Movies|DVD|Blu-?ray|Toys|おもちゃ)\s*$/i,
+      '',
+    )
+    if (t === before) break
+  }
+
+  // If the title still has multiple ":" / "|" / "｜" / "：" segments, the
+  // longest one is almost always the actual product title (the rest are
+  // category / contributor labels).
+  const parts = t.split(/\s*[:|｜：]\s*/).map((s) => s.trim()).filter(Boolean)
   if (parts.length > 1) {
     parts.sort((a, b) => b.length - a.length)
     return parts[0]
