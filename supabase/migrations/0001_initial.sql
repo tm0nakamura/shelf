@@ -225,3 +225,41 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_auth_user();
+
+-- ----------------------------------------------------------------
+-- Backfill: bootstrap public.users for any auth.users that already
+-- existed before this migration ran. Idempotent.
+-- ----------------------------------------------------------------
+do $$
+declare
+  u record;
+  base_handle text;
+  generated_handle text;
+  attempt int;
+begin
+  for u in select id, email, raw_user_meta_data from auth.users
+           where id not in (select id from public.users) loop
+    base_handle := lower(regexp_replace(split_part(u.email, '@', 1), '[^a-z0-9]', '', 'g'));
+    if base_handle = '' or base_handle is null then
+      base_handle := 'user';
+    end if;
+    generated_handle := base_handle;
+    attempt := 0;
+    while exists (select 1 from public.users where username = generated_handle) loop
+      attempt := attempt + 1;
+      generated_handle := base_handle || floor(random() * 10000)::int;
+      if attempt > 20 then
+        generated_handle := base_handle || extract(epoch from now())::bigint;
+        exit;
+      end if;
+    end loop;
+    insert into public.users (id, email, username, display_name)
+    values (
+      u.id,
+      u.email,
+      generated_handle,
+      coalesce(u.raw_user_meta_data ->> 'name', generated_handle)
+    )
+    on conflict (id) do nothing;
+  end loop;
+end $$;
