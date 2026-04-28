@@ -22,35 +22,41 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
 
   const isOwner = userRes.user?.id === profile.id
 
-  // Fetch all items, then pick a featured one per category.
-  // Phase 1: featured = most recently consumed.
+  // Pull a generous slice of recent items, then bucket them per category.
+  // We sort by consumed_at desc with acquired_at / added_at fallbacks so the
+  // first element of each bucket becomes the featured card.
   const { data: items } = await supabase
     .from('items')
-    .select('id, category, title, creator, cover_image_url, consumed_at, added_at')
+    .select('id, category, title, creator, cover_image_url, consumed_at, acquired_at, added_at, source_url')
     .eq('user_id', profile.id)
     .order('consumed_at', { ascending: false, nullsFirst: false })
+    .order('acquired_at', { ascending: false, nullsFirst: false })
+    .order('added_at', { ascending: false })
     .limit(500)
 
   const itemList = items ?? []
 
-  const featured: Partial<Record<Category, ShelfItem>> = {}
+  const byCategory: Partial<Record<Category, ShelfItem[]>> = {}
   const connectedCategories: Category[] = []
   for (const c of ALL_CATEGORIES) {
-    const first = itemList.find((it) => it.category === c)
-    if (first) {
-      featured[c] = {
-        id: first.id,
-        category: first.category as Category,
-        title: first.title,
-        creator: first.creator,
-        cover_image_url: first.cover_image_url,
-        consumed_at: first.consumed_at,
-      }
+    const bucket: ShelfItem[] = itemList
+      .filter((it) => it.category === c)
+      .map((it) => ({
+        id: it.id,
+        category: it.category as Category,
+        title: it.title,
+        creator: it.creator,
+        cover_image_url: it.cover_image_url,
+        consumed_at: it.consumed_at,
+        acquired_at: it.acquired_at,
+        source_url: it.source_url,
+      }))
+    if (bucket.length > 0) {
+      byCategory[c] = bucket
       connectedCategories.push(c)
     }
   }
 
-  // Stats — Phase 1: simple counts.
   const stats = {
     music_tracks: itemList.filter((it) => it.category === 'music').length,
     live_count: itemList.filter((it) => it.category === 'live_event').length,
@@ -63,7 +69,7 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
     display_name: profile.display_name,
     theme: (profile.theme === 'haru' || profile.theme === 'ren') ? profile.theme : 'ami',
     stats,
-    featured,
+    byCategory,
     connectedCategories,
   }
 

@@ -12,6 +12,8 @@ export type ShelfItem = {
   creator: string | null
   cover_image_url: string | null
   consumed_at: string | null
+  acquired_at?: string | null
+  source_url?: string | null
 }
 
 export type ShelfStats = {
@@ -26,9 +28,9 @@ export type ShelfData = {
   display_name: string
   theme: 'ami' | 'haru' | 'ren'
   stats: ShelfStats
-  /** featured item per category (most recent / starred) */
-  featured: Partial<Record<Category, ShelfItem>>
-  /** which categories have at least one item */
+  /** Items per category, sorted most-recent first. Featured = first element. */
+  byCategory: Partial<Record<Category, ShelfItem[]>>
+  /** Categories with at least one item. */
   connectedCategories: Category[]
 }
 
@@ -59,6 +61,15 @@ const CATEGORY_HINT_SVCS: Record<Category, string> = {
   game: 'Steam・シェアで追加',
 }
 
+const CATEGORY_COUNT_UNIT: Record<Category, string> = {
+  music: 'tracks',
+  book: 'books',
+  film: 'films',
+  comic: 'vols.',
+  live_event: 'shows',
+  game: 'titles',
+}
+
 const TASTE_ORDER: Category[] = ['music', 'live_event', 'book', 'film', 'comic', 'game']
 
 export function Shelf({ data }: { data: ShelfData }) {
@@ -69,10 +80,9 @@ export function Shelf({ data }: { data: ShelfData }) {
     : data.theme === 'ren' ? styles.themeRen
     : styles.themeAmi
 
-  // Sort taste cells: filled first, empty last (left-top packing).
   const sortedCategories = [...TASTE_ORDER].sort((a, b) => {
-    const aFilled = data.connectedCategories.includes(a) && !!data.featured[a]
-    const bFilled = data.connectedCategories.includes(b) && !!data.featured[b]
+    const aFilled = !!data.byCategory[a]?.length
+    const bFilled = !!data.byCategory[b]?.length
     if (aFilled === bFilled) return 0
     return aFilled ? -1 : 1
   })
@@ -119,15 +129,13 @@ export function Shelf({ data }: { data: ShelfData }) {
         {activeTab === 'all' ? (
           <div className={styles.tasteGrid}>
             {sortedCategories.map((c) => {
-              const item = data.featured[c]
-              if (item && data.connectedCategories.includes(c)) {
-                return <FilledCell key={c} category={c} item={item} />
-              }
+              const item = data.byCategory[c]?.[0]
+              if (item) return <FilledCell key={c} category={c} item={item} />
               return <EmptyCell key={c} category={c} />
             })}
           </div>
         ) : (
-          <CategoryDetail category={activeTab} item={data.featured[activeTab]} />
+          <CategoryDetail category={activeTab} items={data.byCategory[activeTab] ?? []} />
         )}
       </main>
     </div>
@@ -169,10 +177,10 @@ function CatTab({
 function FilledCell({ category, item }: { category: Category; item: ShelfItem }) {
   return (
     <div className={styles.tasteCell}>
-      {item.cover_image_url ? (
+      {item.cover_image_url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={item.cover_image_url} alt="" className={styles.cover} />
-      ) : null}
+      )}
       <span className={styles.genre}>{CATEGORY_LABELS[category]}</span>
       <div className={styles.lbl}>
         {item.creator && <span className={styles.a}>{item.creator}</span>}
@@ -195,23 +203,86 @@ function EmptyCell({ category }: { category: Category }) {
   )
 }
 
-function CategoryDetail({ category, item }: { category: Category; item?: ShelfItem }) {
-  if (!item) {
-    return <EmptyCell category={category} />
+function CategoryDetail({ category, items }: { category: Category; items: ShelfItem[] }) {
+  if (items.length === 0) {
+    return <div className={styles.detailEmpty}>このカテゴリはまだ空です。</div>
   }
+
   return (
-    <div>
-      <div className={styles.tasteCell} style={{ aspectRatio: '16 / 10', borderRadius: 14 }}>
-        {item.cover_image_url ? (
+    <>
+      <div className={styles.catHead}>
+        <h3>{CATEGORY_LABELS[category]}</h3>
+        <span className={styles.catMeta}>
+          {items.length} {CATEGORY_COUNT_UNIT[category]}
+        </span>
+      </div>
+
+      {category === 'live_event'
+        ? <TicketRow items={items} />
+        : <FeatureLayout items={items} />
+      }
+    </>
+  )
+}
+
+function FeatureLayout({ items }: { items: ShelfItem[] }) {
+  const [feature, ...rest] = items
+  const grid = rest.slice(0, 4)
+
+  return (
+    <>
+      <div className={styles.feature}>
+        {feature.cover_image_url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.cover_image_url} alt="" className={styles.cover} />
-        ) : null}
-        <span className={styles.genre}>{CATEGORY_LABELS[category]}</span>
+          <img src={feature.cover_image_url} alt="" className={styles.cover} />
+        )}
         <div className={styles.lbl}>
-          {item.creator && <span className={styles.a}>{item.creator}</span>}
-          <span className={styles.t}>{item.title}</span>
+          {feature.creator && <span className={styles.a}>{feature.creator}</span>}
+          <span className={styles.t}>{feature.title}</span>
         </div>
       </div>
+
+      {grid.length > 0 && (
+        <div className={styles.grid2}>
+          {grid.map((item) => (
+            <div key={item.id} className={styles.card}>
+              {item.cover_image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.cover_image_url} alt="" className={styles.cover} />
+              )}
+              <div className={styles.lbl}>
+                {item.creator && <span className={styles.a}>{item.creator}</span>}
+                <span className={styles.t}>{item.title}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function TicketRow({ items }: { items: ShelfItem[] }) {
+  return (
+    <div className={styles.tktRow}>
+      {items.slice(0, 8).map((item) => (
+        <div key={item.id} className={styles.tkt}>
+          <div className={styles.tktDate}>
+            {formatTicketDate(item.consumed_at ?? item.acquired_at ?? null)}
+          </div>
+          <div className={styles.tktBar} />
+          <div className={styles.tktInfo}>
+            <div className={styles.show}>{item.title}</div>
+            {item.creator && <div className={styles.venue}>{item.creator}</div>}
+          </div>
+        </div>
+      ))}
     </div>
   )
+}
+
+function formatTicketDate(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return `${String(d.getMonth() + 1).padStart(2, '0')} · ${String(d.getDate()).padStart(2, '0')}`
 }
