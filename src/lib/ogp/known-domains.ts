@@ -210,13 +210,28 @@ function cleanAmazonTitle(raw: string): string | null {
 }
 
 /**
- * Strip Amazon's `_SL75_` / `_SX300_` / `_AC_UY...` thumbnail suffix so we
- * get the full-resolution image. The original `m.media-amazon.com/images/I/<id>.jpg`
- * URL is served at the highest available resolution.
+ * Force Amazon's image-CDN URLs to a known-large size variant.
+ *
+ * Amazon URL anatomy:
+ *   https://m.media-amazon.com/images/I/<asset>._SY346_.jpg
+ *                                          ^^^^^^^ size/transform suffix(es)
+ *
+ * og:image and microlink-served URLs land on small thumbs (200-300 px).
+ * Replacing every "_AAA_" / "_AAA,123,456,789_" / multi-suffix block with
+ * "_SL1500_" gives a consistent ~1500 px asset that survives Retina
+ * upscaling. Falls through unchanged when the host isn't an Amazon CDN.
  */
 function upgradeAmazonImageUrl(url: string): string {
-  if (!/\bm\.media-amazon\.com\/images\//i.test(url)) return url
-  return url.replace(/\._[A-Z][A-Z0-9,]*_\./i, '.')
+  const isAmazonCdn =
+    /(?:^|\.)(?:m\.media-amazon\.com|i\.media-amazon\.com|images-(?:fe|na|eu|jp|amazon)\.ssl-images-amazon\.com|images\.amazon\.com)\/images\//i.test(
+      url,
+    )
+  if (!isAmazonCdn) return url
+
+  // Collapse one-or-more "._XXX_" / "._XXX,n,n,n_" suffix groups into a
+  // single _SL1500_ — handles ._AC_UY327_FMwebp_QL65_.jpg shapes too.
+  const collapsed = url.replace(/(?:\._[A-Z][A-Z0-9,]*_)+\./i, '._SL1500_.')
+  return collapsed
 }
 
 function extractAmazonImage(html: string): string | null {
