@@ -13,20 +13,40 @@ function key(): Buffer {
 }
 
 /**
- * Encrypt a JSON-serializable object. Returns a Buffer suitable for storing
- * in a Postgres bytea column. Layout: [iv | tag | ciphertext].
+ * Encrypt a JSON-serializable object. Returns a Postgres bytea-literal
+ * string of the form `\xABCD…` so it survives Supabase / PostgREST's
+ * JSON serialization intact (Buffer would get JSON-stringified into
+ * `{"type":"Buffer","data":[…]}` and never land in the bytea column).
+ *
+ * Layout once decoded: [iv (12B) | tag (16B) | ciphertext].
  */
-export function encryptJson(value: unknown): Buffer {
+export function encryptJson(value: unknown): string {
   const plaintext = Buffer.from(JSON.stringify(value), 'utf8')
   const iv = randomBytes(IV_LEN)
   const cipher = createCipheriv(ALGO, key(), iv)
   const ct = Buffer.concat([cipher.update(plaintext), cipher.final()])
   const tag = cipher.getAuthTag()
-  return Buffer.concat([iv, tag, ct])
+  return '\\x' + Buffer.concat([iv, tag, ct]).toString('hex')
 }
 
-export function decryptJson<T = unknown>(blob: Buffer | Uint8Array): T {
-  const buf = Buffer.isBuffer(blob) ? blob : Buffer.from(blob)
+/**
+ * Decrypt whatever Postgres / PostgREST hands back: a `\x…` hex literal,
+ * a base64 string (other PostgREST encodings), or raw bytes from a
+ * direct SQL select.
+ */
+export function decryptJson<T = unknown>(blob: string | Buffer | Uint8Array): T {
+  let buf: Buffer
+  if (typeof blob === 'string') {
+    if (blob.startsWith('\\x')) {
+      buf = Buffer.from(blob.slice(2), 'hex')
+    } else {
+      buf = Buffer.from(blob, 'base64')
+    }
+  } else if (Buffer.isBuffer(blob)) {
+    buf = blob
+  } else {
+    buf = Buffer.from(blob)
+  }
   const iv = buf.subarray(0, IV_LEN)
   const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN)
   const ct = buf.subarray(IV_LEN + TAG_LEN)
