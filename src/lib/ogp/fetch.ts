@@ -64,29 +64,116 @@ export async function fetchOgp(input: string): Promise<OgpResult> {
     }
   }
 
-  if (!html) {
-    throw new Error(`fetch_failed_${lastStatus || 'network'}`)
+  if (html) {
+    const meta = {
+      title: pickMeta(html, ['og:title', 'twitter:title']) ?? pickTitleTag(html),
+      description: pickMeta(html, ['og:description', 'twitter:description', 'description']),
+      image: pickMeta(html, ['og:image', 'twitter:image', 'twitter:image:src']),
+      siteName: pickMeta(html, ['og:site_name', 'application-name']),
+      type: pickMeta(html, ['og:type']),
+    }
+
+    const known = resolveKnownDomain(fetchedUrl, html, meta)
+
+    // If we got a meaningful title (not just a generic site name), trust direct.
+    const finalTitle = known.title ?? meta.title
+    if (finalTitle && !isGenericSiteTitle(finalTitle)) {
+      return {
+        url: known.url ?? fetchedUrl,
+        title: finalTitle,
+        description: known.description ?? meta.description,
+        image: known.image ?? meta.image,
+        siteName: known.siteName ?? meta.siteName,
+        type: meta.type,
+        category: known.category,
+        creator: known.creator ?? null,
+      }
+    }
   }
 
-  const meta = {
-    title: pickMeta(html, ['og:title', 'twitter:title']) ?? pickTitleTag(html),
-    description: pickMeta(html, ['og:description', 'twitter:description', 'description']),
-    image: pickMeta(html, ['og:image', 'twitter:image', 'twitter:image:src']),
-    siteName: pickMeta(html, ['og:site_name', 'application-name']),
-    type: pickMeta(html, ['og:type']),
+  // Fall back to microlink (headless Chrome-as-a-service). Free tier
+  // covers ~50 req/day without an API key.
+  const micro = await tryMicrolink(url)
+  if (micro) {
+    const known = resolveKnownDomain(url, '', {
+      title: micro.title,
+      description: micro.description,
+      image: micro.image,
+      siteName: micro.siteName,
+      type: micro.type,
+    })
+    return {
+      url: known.url ?? micro.url,
+      title: known.title ?? micro.title,
+      description: known.description ?? micro.description,
+      image: known.image ?? micro.image,
+      siteName: known.siteName ?? micro.siteName,
+      type: micro.type,
+      category: known.category,
+      creator: known.creator ?? micro.creator,
+    }
   }
 
-  const known = resolveKnownDomain(fetchedUrl, html, meta)
+  throw new Error(`fetch_failed_${lastStatus || 'network'}`)
+}
 
-  return {
-    url: known.url ?? fetchedUrl,
-    title: known.title ?? meta.title,
-    description: known.description ?? meta.description,
-    image: known.image ?? meta.image,
-    siteName: known.siteName ?? meta.siteName,
-    type: meta.type,
-    category: known.category,
-    creator: known.creator ?? null,
+/**
+ * "Amazon.co.jp", "Yahoo!", etc. — clearly not the actual product/article
+ * title. When the direct fetch returns one of these we should fall through
+ * to the microlink fallback rather than commit a useless title.
+ */
+function isGenericSiteTitle(title: string): boolean {
+  const trimmed = title.trim().toLowerCase()
+  if (trimmed.length < 4) return true
+  return [
+    'amazon.co.jp',
+    'amazon.com',
+    'amazon',
+    'yahoo!',
+    'yahoo! japan',
+    'google',
+    'rakuten',
+    '楽天市場',
+    'access denied',
+    'robot check',
+  ].some((g) => trimmed === g || trimmed.startsWith(g + ' ') || trimmed.startsWith(g + ':'))
+}
+
+async function tryMicrolink(url: string): Promise<OgpResult | null> {
+  try {
+    const params = new URLSearchParams({ url })
+    const res = await fetch(`https://api.microlink.io?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      // Microlink can take ~5s to render; bail at 12s.
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!res.ok) return null
+    const json = await res.json() as {
+      status?: string
+      data?: {
+        url?: string
+        title?: string | null
+        description?: string | null
+        image?: { url?: string } | string | null
+        publisher?: string | null
+        author?: string | null
+      }
+    }
+    if (json.status !== 'success' || !json.data) return null
+    const d = json.data
+    const image = typeof d.image === 'object' && d.image ? d.image.url ?? null : (typeof d.image === 'string' ? d.image : null)
+    return {
+      url: d.url ?? url,
+      title: d.title ?? null,
+      description: d.description ?? null,
+      image: image ?? null,
+      siteName: d.publisher ?? null,
+      type: null,
+      creator: d.author ?? null,
+    }
+  } catch {
+    return null
   }
 }
 
