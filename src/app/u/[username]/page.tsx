@@ -77,14 +77,23 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
     <div className="min-h-dvh bg-[#14110f] py-6 sm:py-12 relative">
       <Shelf data={data} />
       {isOwner && (
-        <Link
-          href="/items/new"
-          aria-label="アイテムを追加"
-          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex items-center gap-2.5 rounded-full bg-[#b53d5f] hover:bg-[#c54a6e] text-[#fcf3e8] font-serif italic px-6 py-3 shadow-[0_10px_30px_-8px_rgba(181,61,95,0.55),0_4px_10px_-2px_rgba(0,0,0,0.3)] transition"
-        >
-          <span className="text-lg leading-none -mt-px">+</span>
-          <span className="text-sm tracking-wide">追加</span>
-        </Link>
+        <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-50 flex items-center gap-2">
+          <Link
+            href="/items/manage"
+            aria-label="アイテム管理"
+            className="rounded-full border border-white/15 hover:border-white/30 hover:bg-white/5 text-white/70 hover:text-white text-xs font-medium tracking-wide px-4 py-3 backdrop-blur-md bg-black/20 transition"
+          >
+            管理
+          </Link>
+          <Link
+            href="/items/new"
+            aria-label="アイテムを追加"
+            className="flex items-center gap-2.5 rounded-full bg-[#b53d5f] hover:bg-[#c54a6e] text-[#fcf3e8] font-serif italic px-6 py-3 shadow-[0_10px_30px_-8px_rgba(181,61,95,0.55),0_4px_10px_-2px_rgba(0,0,0,0.3)] transition"
+          >
+            <span className="text-lg leading-none -mt-px">+</span>
+            <span className="text-sm tracking-wide">追加</span>
+          </Link>
+        </div>
       )}
     </div>
   )
