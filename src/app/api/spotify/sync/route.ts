@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncSpotifyConnection } from '@/lib/spotify/sync'
 
+export const maxDuration = 60
+
 /**
  * POST /api/spotify/sync — manually trigger a sync for the signed-in user's
  * Spotify connection. Used by the settings page button.

@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncGmailConnection } from '@/lib/google/sync'
 
+export const maxDuration = 60
+
 /**
  * POST /api/gmail/sync — manually trigger a Gmail (Amazon) sync for the
  * signed-in user. Used by the settings page button.

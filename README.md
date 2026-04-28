@@ -109,6 +109,55 @@ npm run dev
 
 → http://127.0.0.1:3000  （`localhost` ではなく必ずこの IP でアクセス。Spotify OAuth が同じ origin で帰ってくるため）
 
+## Vercel デプロイ
+
+GitHub 連携で Import するのが最短です。
+
+### 1. Vercel にプロジェクトを作る
+
+[vercel.com/new](https://vercel.com/new) → **Import Git Repository** で `tm0nakamura/shelf` を選択。
+Framework は **Next.js** が自動検出される。Root Directory はデフォルト（リポジトリ直下）。
+
+### 2. 環境変数を入れる（Settings → Environment Variables）
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+APP_URL=https://YOUR_PROJECT.vercel.app    # ← デプロイ後に取得した本番 URL に書き換え
+TOKEN_ENCRYPTION_KEY=<64 hex>              # ローカル用とは別の値を新規生成推奨
+```
+
+> Spotify を使わないなら `SPOTIFY_*` は省略可。
+
+### 3. デプロイ → 本番 URL を確認
+
+最初の build はおおよそ 1〜2 分。完了すると `https://shelf-jp-xxxxx.vercel.app` のような URL が払い出される。
+
+### 4. **OAuth Redirect URI を本番 URL で再登録**（忘れがち）
+
+- **Google Cloud Console** → APIs & Services → Credentials → OAuth client → Authorized redirect URIs に追加：
+  ```
+  https://YOUR_PROJECT.vercel.app/api/gmail/callback
+  ```
+- Supabase Dashboard → Authentication → URL Configuration → Redirect URLs に追加：
+  ```
+  https://YOUR_PROJECT.vercel.app/auth/callback
+  ```
+- 既存ローカルの `http://127.0.0.1:3000/...` も**削除せず残す**（dev で必要）
+
+### 5. `APP_URL` を本番 URL に固定して再デプロイ
+
+ステップ 2 で仮で入れた `APP_URL` を実際の `https://YOUR_PROJECT.vercel.app` に直して、Vercel 上で **Redeploy** ボタン（または `git push` で自動）。
+
+### 制限と注意
+
+- **Vercel Hobby（無料）の関数タイムアウト 60s 上限**：`maxDuration = 60` を設定済み。Gmail 6 ヶ月分メール 200 件のパースはこの中に収まる想定。本番でタイムアウトするようなら範囲を狭める
+- **Hobby は商用利用不可** — 個人利用 / MVP までが無料、それ以上は Pro ($20/月)
+- カスタムドメインを当てる場合は、再度 OAuth Redirect URI に独自ドメインの `/api/gmail/callback` も追加すること
+
 ## 主なルート
 
 | ルート | 役割 |

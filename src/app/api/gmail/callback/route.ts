@@ -4,6 +4,9 @@ import { exchangeCodeForTokens } from '@/lib/google/oauth'
 import { encryptJson } from '@/lib/crypto'
 import { syncGmailConnection } from '@/lib/google/sync'
 
+// Initial Gmail sync may scan up to 200 messages — Vercel default 10s isn't enough.
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')

@@ -4,6 +4,8 @@ import { exchangeCodeForTokens } from '@/lib/spotify/auth'
 import { encryptJson } from '@/lib/crypto'
 import { syncSpotifyConnection } from '@/lib/spotify/sync'
 
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
