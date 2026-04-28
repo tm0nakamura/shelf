@@ -63,7 +63,7 @@ export async function verifyCookies(cookies: SerializedCookie[]): Promise<boolea
     .join('; ')
   if (!cookieHeader) return false
 
-  const res = await fetch('https://shonenjumpplus.com/mypage', {
+  const res = await fetch('https://shonenjumpplus.com/my', {
     headers: {
       Cookie: cookieHeader,
       'User-Agent':

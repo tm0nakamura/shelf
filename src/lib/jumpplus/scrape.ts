@@ -29,9 +29,12 @@ export async function scrapeMypage(cookies: SerializedCookie[]): Promise<Jumpplu
   })
 }
 
+// Jump+ uses /my (not /mypage) for the user's home; sub-tabs hang off it.
+// 購入済み = /my/purchased, レンタル中 = /my/rental.
 const MYPAGE_URLS = [
-  'https://shonenjumpplus.com/mypage',
-  'https://shonenjumpplus.com/mypage/favorites',
+  'https://shonenjumpplus.com/my',
+  'https://shonenjumpplus.com/my/purchased',
+  'https://shonenjumpplus.com/my/rental',
 ] as const
 
 async function fetchAuthed(url: string, cookieHeader: string): Promise<string | null> {
