@@ -22,24 +22,51 @@ export type OgpResult = {
   creator: string | null
 }
 
-const UA = 'Mozilla/5.0 (compatible; shelf-jp/0.1; +https://shelf-wine.vercel.app)'
+// Real-browser UA. A "compatible; bot/0.1" UA gets rejected by most major
+// retailers (Amazon, Rakuten, etc.) before they serve any markup.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
 export async function fetchOgp(input: string): Promise<OgpResult> {
   const url = normalizeUrl(input)
   if (!url) throw new Error('invalid_url')
 
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': UA,
-      'Accept': 'text/html,application/xhtml+xml',
-      'Accept-Language': 'ja,en;q=0.9',
-    },
-    redirect: 'follow',
-    cache: 'no-store',
-  })
-  if (!res.ok) throw new Error(`fetch_failed_${res.status}`)
+  // Some hosts (notably Amazon) attach huge tracking query strings that
+  // can trigger 404 / region-redirect logic. Try the canonical form first,
+  // fall back to the original if that comes back empty.
+  const candidates = canonicalizeForFetch(url)
 
-  const html = await res.text()
+  let html: string | null = null
+  let lastStatus = 0
+  let fetchedUrl = url
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(candidate, {
+        headers: {
+          'User-Agent': UA,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ja,en-US;q=0.7,en;q=0.3',
+          'Accept-Encoding': 'gzip, deflate, br',
+        },
+        redirect: 'follow',
+        cache: 'no-store',
+      })
+      lastStatus = res.status
+      if (res.ok) {
+        const text = await res.text()
+        if (text.length > 200) {
+          html = text
+          fetchedUrl = candidate
+          break
+        }
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  if (!html) {
+    throw new Error(`fetch_failed_${lastStatus || 'network'}`)
+  }
 
   const meta = {
     title: pickMeta(html, ['og:title', 'twitter:title']) ?? pickTitleTag(html),
@@ -49,10 +76,10 @@ export async function fetchOgp(input: string): Promise<OgpResult> {
     type: pickMeta(html, ['og:type']),
   }
 
-  const known = resolveKnownDomain(url, html, meta)
+  const known = resolveKnownDomain(fetchedUrl, html, meta)
 
   return {
-    url: known.url ?? url,
+    url: known.url ?? fetchedUrl,
     title: known.title ?? meta.title,
     description: known.description ?? meta.description,
     image: known.image ?? meta.image,
@@ -61,6 +88,32 @@ export async function fetchOgp(input: string): Promise<OgpResult> {
     category: known.category,
     creator: known.creator ?? null,
   }
+}
+
+/**
+ * Build a list of fetch candidates for a URL, ordered by preference.
+ * For Amazon especially, the long URLs with `?keywords=...&qid=...` query
+ * params can trigger their bot-mitigation flow more aggressively than the
+ * canonical /dp/[ASIN] path.
+ */
+function canonicalizeForFetch(url: string): string[] {
+  const out: string[] = []
+  try {
+    const u = new URL(url)
+    const host = u.hostname.toLowerCase().replace(/^www\./, '')
+
+    if (host.endsWith('amazon.co.jp') || host.endsWith('amazon.com')) {
+      const asin = u.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/)?.[1]
+      if (asin) {
+        out.push(`${u.origin}/dp/${asin}`)
+      }
+    }
+  } catch {
+    // fall through
+  }
+  // Always also try the original URL (without modification) as a fallback.
+  if (!out.includes(url)) out.push(url)
+  return out
 }
 
 function normalizeUrl(input: string): string | null {
