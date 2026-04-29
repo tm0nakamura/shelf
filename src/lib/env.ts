@@ -14,6 +14,7 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: optionalStr,
   SPOTIFY_CLIENT_ID: optionalStr,
   SPOTIFY_CLIENT_SECRET: optionalStr,
+  STEAM_API_KEY: optionalStr,
   APP_URL: z.string().url().default('http://127.0.0.1:3000'),
   TOKEN_ENCRYPTION_KEY: z
     .string()
@@ -33,6 +34,7 @@ export const env = schema.parse({
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
   SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID ?? '',
   SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ?? '',
+  STEAM_API_KEY: process.env.STEAM_API_KEY ?? '',
   APP_URL: process.env.APP_URL ?? 'http://127.0.0.1:3000',
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY ?? '',
   IMPORT_API_TOKEN: process.env.IMPORT_API_TOKEN ?? '',

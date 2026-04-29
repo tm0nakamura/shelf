@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { GmailActions } from './connection-actions'
+import { GmailActions, SteamActions } from './connection-actions'
 
 export default async function ConnectionsPage({
   searchParams,
@@ -28,6 +28,7 @@ export default async function ConnectionsPage({
     .eq('user_id', userRes.user.id)
 
   const gmail = connections?.find((c) => c.provider === 'gmail')
+  const steam = connections?.find((c) => c.provider === 'steam')
 
   return (
     <main className="min-h-dvh bg-[#14110f] text-white px-6 py-12">
@@ -46,6 +47,9 @@ export default async function ConnectionsPage({
 
         {params.ok === 'gmail' && (
           <Banner kind="ok">Gmail を連携しました。Amazon の購入履歴を取り込んでいます…</Banner>
+        )}
+        {params.ok === 'steam' && (
+          <Banner kind="ok">Steam を連携しました。所有ゲーム / 直近プレイを取り込んでいます…</Banner>
         )}
         {params.error && (
           <Banner kind="error">エラー: {params.error}</Banner>
@@ -66,6 +70,23 @@ export default async function ConnectionsPage({
                 </div>
               </div>
               <GmailActions connected={!!gmail} />
+            </div>
+          </li>
+
+          <li className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#1b2838] flex items-center justify-center font-black text-[#66c0f4] border border-[#66c0f4]/30">St</div>
+              <div className="flex-1">
+                <div className="font-bold">Steam</div>
+                <div className="text-xs text-white/50 mt-0.5">
+                  {steam
+                    ? steam.status === 'active'
+                      ? `連携中 · 最終同期 ${formatTime(steam.last_synced_at)}`
+                      : `エラー (${steam.error_count})`
+                    : 'OpenID で SteamID 取得 → 所有ゲーム + 直近プレイを毎日同期'}
+                </div>
+              </div>
+              <SteamActions connected={!!steam} />
             </div>
           </li>
 
