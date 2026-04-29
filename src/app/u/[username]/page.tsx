@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Shelf, type Category, type ShelfData, type ShelfItem } from '@/components/shelf/Shelf'
 
-const ALL_CATEGORIES: Category[] = ['music', 'book', 'film', 'comic', 'live_event', 'game']
+const ALL_CATEGORIES: Category[] = ['music', 'book', 'film', 'anime', 'drama', 'comic', 'live_event', 'game']
 
 export default async function ShelfPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params

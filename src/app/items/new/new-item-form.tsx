@@ -3,12 +3,14 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Category = 'music' | 'book' | 'film' | 'comic' | 'live_event' | 'game'
+type Category = 'music' | 'book' | 'film' | 'anime' | 'drama' | 'comic' | 'live_event' | 'game'
 
 const CATEGORY_OPTIONS: Array<{ value: Category; label: string; icon: string }> = [
   { value: 'music', label: '音楽', icon: '♪' },
   { value: 'book', label: '本', icon: '▤' },
   { value: 'film', label: '映画', icon: '▣' },
+  { value: 'anime', label: 'アニメ', icon: '✦' },
+  { value: 'drama', label: 'ドラマ', icon: '◐' },
   { value: 'comic', label: '漫画', icon: '◫' },
   { value: 'live_event', label: 'ライブ', icon: '▶' },
   { value: 'game', label: 'ゲーム', icon: '⌘' },

@@ -48,7 +48,7 @@ export default async function ManageItemsPage() {
         ) : (
           <ManageList items={items.map((it) => ({
             id: it.id,
-            category: it.category as 'music' | 'book' | 'film' | 'comic' | 'live_event' | 'game',
+            category: it.category as 'music' | 'book' | 'film' | 'anime' | 'drama' | 'comic' | 'live_event' | 'game',
             title: it.title,
             creator: it.creator,
             cover_image_url: it.cover_image_url,

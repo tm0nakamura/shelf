@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 
-const CATEGORY_VALUES = ['music', 'book', 'film', 'comic', 'live_event', 'game'] as const
+const CATEGORY_VALUES = ['music', 'book', 'film', 'anime', 'drama', 'comic', 'live_event', 'game'] as const
 const SOURCE_VALUES = ['url', 'manual', 'image_upload', 'barcode'] as const
 
 const Body = z.object({

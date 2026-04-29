@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import styles from './shelf.module.css'
 
-export type Category = 'music' | 'book' | 'film' | 'comic' | 'live_event' | 'game'
+export type Category = 'music' | 'book' | 'film' | 'anime' | 'drama' | 'comic' | 'live_event' | 'game'
 
 export type ShelfItem = {
   id: string
@@ -39,6 +39,8 @@ const CATEGORY_LABELS: Record<Category, string> = {
   live_event: 'ライブ',
   book: '本',
   film: '映画',
+  anime: 'アニメ',
+  drama: 'ドラマ',
   comic: '漫画',
   game: 'ゲーム',
 }
@@ -48,6 +50,8 @@ const CATEGORY_ICONS: Record<Category, string> = {
   live_event: '▶',
   book: '▤',
   film: '▣',
+  anime: '✦',
+  drama: '◐',
   comic: '◫',
   game: '⌘',
 }
@@ -55,8 +59,10 @@ const CATEGORY_ICONS: Record<Category, string> = {
 const CATEGORY_HINT_SVCS: Record<Category, string> = {
   music: 'Spotify・Apple Music',
   book: 'Kindle・シェアで追加',
-  film: 'シェアで追加',
-  comic: 'Kindle・シェアで追加',
+  film: 'U-NEXT・シェアで追加',
+  anime: 'U-NEXT・シェアで追加',
+  drama: 'U-NEXT・シェアで追加',
+  comic: 'Kindle・U-NEXT',
   live_event: 'シェアで追加',
   game: 'Steam・シェアで追加',
 }
@@ -65,12 +71,14 @@ const CATEGORY_COUNT_UNIT: Record<Category, string> = {
   music: 'tracks',
   book: 'books',
   film: 'films',
+  anime: 'series',
+  drama: 'series',
   comic: 'vols.',
   live_event: 'shows',
   game: 'titles',
 }
 
-const TASTE_ORDER: Category[] = ['music', 'live_event', 'book', 'film', 'comic', 'game']
+const TASTE_ORDER: Category[] = ['music', 'live_event', 'book', 'film', 'anime', 'drama', 'comic', 'game']
 
 export function Shelf({ data }: { data: ShelfData }) {
   const [activeTab, setActiveTab] = useState<'all' | Category>('all')

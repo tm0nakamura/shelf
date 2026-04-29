@@ -14,9 +14,40 @@ export type StoredUnextCreds = {
 
 type SyncResult = {
   added: number
+  /** Movies (and unclassifiable long-form video). */
   episodes: number
+  anime: number
+  drama: number
   books: number
   comics: number
+}
+
+/**
+ * Best-effort genre classification from the only fields cosmo_getHistoryAll
+ * actually returns: episode duration and the displayNo string. Without a
+ * second titleInfo query we can't reach the real U-NEXT genre tag, so we
+ * fall back to the bucket sizes that empirically separate the three.
+ *
+ *   - duration ≥ 75min                 → film (theatrical / OVA movie)
+ *   - has displayNo + duration ≤ 32min → anime (most TV anime is 22-30 min)
+ *   - has displayNo + duration ≤ 75min → drama (live action TV is 40-60 min)
+ *   - no displayNo + duration ≥ 30min  → film (variety specials, docs)
+ *   - very short clips                 → anime (kids shorts skew this way)
+ *
+ * Edge cases this gets wrong: long-form drama recap episodes, anime
+ * theatrical compilations. Acceptable for v1; the metadata still carries
+ * duration/displayNo so a future titleInfo backfill can correct them.
+ */
+function classifyVideo(ep: { duration: number; displayNo: string }): 'film' | 'anime' | 'drama' {
+  const dur = ep.duration ?? 0
+  const hasEpisodeNo = !!ep.displayNo?.trim()
+  if (dur >= 4500) return 'film'
+  if (hasEpisodeNo) {
+    if (dur <= 1920) return 'anime'
+    if (dur <= 4500) return 'drama'
+  }
+  if (dur >= 1800) return 'film'
+  return 'anime'
 }
 
 /**
@@ -54,18 +85,26 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
   }
 
   const startedAt = new Date().toISOString()
-  const result: SyncResult = { added: 0, episodes: 0, books: 0, comics: 0 }
+  const result: SyncResult = {
+    added: 0,
+    episodes: 0,
+    anime: 0,
+    drama: 0,
+    books: 0,
+    comics: 0,
+  }
 
   try {
     const json = await fetchHistoryAll(ctx, { videoPageSize: 50, bookPageSize: 50 })
     const episodes = json.data?.episodeHistory ?? []
     const books = json.data?.bookHistory?.books ?? []
 
+    type VideoCategory = 'film' | 'anime' | 'drama'
     type Row = {
       user_id: string
       connection_id: string
       source: 'unext'
-      category: 'film' | 'comic' | 'book'
+      category: VideoCategory | 'comic' | 'book'
       external_id: string
       title: string
       creator: string | null
@@ -78,16 +117,24 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
 
     // One row per *work* (episodeTitleInfo.id), not per episode — so
     // watching all 12 episodes of an anime collapses into one shelf cell.
-    const seenSid = new Set<string>()
+    // For each work, pick the longest-duration sample episode so the
+    // film-vs-series classification doesn't get fooled by a recap.
+    const epBySid = new Map<string, typeof episodes[number]>()
     for (const ep of episodes) {
       const sid = ep.episodeTitleInfo?.id
-      if (!sid || seenSid.has(sid)) continue
-      seenSid.add(sid)
+      if (!sid) continue
+      const existing = epBySid.get(sid)
+      if (!existing || (ep.duration ?? 0) > (existing.duration ?? 0)) {
+        epBySid.set(sid, ep)
+      }
+    }
+    for (const [sid, ep] of epBySid) {
+      const cat = classifyVideo(ep)
       rows.push({
         user_id: conn.user_id,
         connection_id: connectionId,
         source: 'unext',
-        category: 'film',
+        category: cat,
         external_id: sid,
         title: ep.episodeTitleInfo.name,
         creator: null,
@@ -101,9 +148,12 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
           duration_sec: ep.duration,
           interruption_sec: ep.interruption,
           complete: ep.completeFlag,
+          classified_as: cat,
         },
       })
-      result.episodes++
+      if (cat === 'anime') result.anime++
+      else if (cat === 'drama') result.drama++
+      else result.episodes++
     }
 
     const seenBsd = new Set<string>()

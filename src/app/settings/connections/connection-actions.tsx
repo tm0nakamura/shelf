@@ -71,7 +71,9 @@ export function UnextActions({ connected }: { connected: boolean }) {
     const res = await fetch('/api/unext/sync', { method: 'POST' })
     const json = await res.json().catch(() => ({}))
     if (res.ok) {
-      setSyncMsg(`+${json.added ?? 0}件 (動画 ${json.episodes ?? 0} / 漫画 ${json.comics ?? 0} / 書籍 ${json.books ?? 0})`)
+      setSyncMsg(
+        `+${json.added ?? 0}件 (映画 ${json.episodes ?? 0} / アニメ ${json.anime ?? 0} / ドラマ ${json.drama ?? 0} / 漫画 ${json.comics ?? 0} / 書籍 ${json.books ?? 0})`,
+      )
       startTransition(() => router.refresh())
     } else {
       const msg = String(json.error ?? res.status)

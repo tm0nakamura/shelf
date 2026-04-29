@@ -24,7 +24,7 @@ function corsJson(body: unknown, init: ResponseInit = {}) {
   })
 }
 
-const CATEGORY_VALUES = ['music', 'book', 'film', 'comic', 'live_event', 'game'] as const
+const CATEGORY_VALUES = ['music', 'book', 'film', 'anime', 'drama', 'comic', 'live_event', 'game'] as const
 
 const ImportItem = z.object({
   category: z.enum(CATEGORY_VALUES),

@@ -3,12 +3,14 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-type Category = 'music' | 'book' | 'film' | 'comic' | 'live_event' | 'game'
+type Category = 'music' | 'book' | 'film' | 'anime' | 'drama' | 'comic' | 'live_event' | 'game'
 
 const CATEGORY_LABELS: Record<Category, string> = {
   music: '音楽',
   book: '本',
   film: '映画',
+  anime: 'アニメ',
+  drama: 'ドラマ',
   comic: '漫画',
   live_event: 'ライブ',
   game: 'ゲーム',
@@ -19,6 +21,8 @@ const SOURCE_LABELS: Record<string, string> = {
   spotify_saved: 'Spotify · 保存',
   gmail_amazon: 'Amazon メール',
   gmail_eplus: 'イープラス',
+  unext: 'U-NEXT',
+  steam: 'Steam',
   url: 'URL 貼付',
   manual: '手動入力',
   image_upload: '画像アップロード',
