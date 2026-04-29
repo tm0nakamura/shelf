@@ -174,5 +174,9 @@ function Banner({ kind, children }: { kind: 'ok' | 'error'; children: React.Reac
 function formatTime(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' })
+  return d.toLocaleString('ja-JP', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Asia/Tokyo',
+  })
 }

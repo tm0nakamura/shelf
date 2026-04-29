@@ -45,7 +45,7 @@ export default async function JumpplusSettingsPage() {
             </div>
             <p className="text-xs text-white/50 leading-relaxed">
               最終同期: {existing.last_synced_at
-                ? new Date(existing.last_synced_at).toLocaleString('ja-JP')
+                ? new Date(existing.last_synced_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
                 : '—'}　/ エラーカウント: {existing.error_count}
             </p>
           </div>
