@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { GmailActions, SteamActions } from './connection-actions'
+import { GmailActions, SteamActions, UnextActions } from './connection-actions'
 
 export default async function ConnectionsPage({
   searchParams,
@@ -29,6 +29,7 @@ export default async function ConnectionsPage({
 
   const gmail = connections?.find((c) => c.provider === 'gmail')
   const steam = connections?.find((c) => c.provider === 'steam')
+  const unext = connections?.find((c) => c.provider === 'unext')
 
   return (
     <main className="min-h-dvh bg-[#14110f] text-white px-6 py-12">
@@ -51,7 +52,16 @@ export default async function ConnectionsPage({
         {params.ok === 'steam' && (
           <Banner kind="ok">Steam を連携しました。所有ゲーム / 直近プレイを取り込んでいます…</Banner>
         )}
-        {params.error && (
+        {params.ok === 'unext' && (
+          <Banner kind="ok">U-NEXT を連携しました。視聴履歴・読書履歴を取り込んでいます…</Banner>
+        )}
+        {params.error === 'unext_paste_invalid' && (
+          <Banner kind="error">貼り付け内容から Cookie / zxuid / zxemp を読み取れませんでした。Copy as cURL (bash) で取り直してください。</Banner>
+        )}
+        {params.error === 'unext_at_missing' && (
+          <Banner kind="error">アクセストークン (_at) が見つかりませんでした。U-NEXT にログインした状態で Network タブから cURL を取り直してください。</Banner>
+        )}
+        {params.error && !['unext_paste_invalid', 'unext_at_missing'].includes(params.error) && (
           <Banner kind="error">エラー: {params.error}</Banner>
         )}
 
@@ -87,6 +97,23 @@ export default async function ConnectionsPage({
                 </div>
               </div>
               <SteamActions connected={!!steam} />
+            </div>
+          </li>
+
+          <li className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#000a17] flex items-center justify-center font-black text-[#0080de] border border-[#0080de]/40 text-[10px]">U-NEXT</div>
+              <div className="flex-1">
+                <div className="font-bold">U-NEXT</div>
+                <div className="text-xs text-white/50 mt-0.5">
+                  {unext
+                    ? unext.status === 'active'
+                      ? `連携中 · 最終同期 ${formatTime(unext.last_synced_at)}`
+                      : `エラー (${unext.error_count})`
+                    : '視聴履歴 + 読書履歴（Cookie ペースト連携・有効期限あり）'}
+                </div>
+              </div>
+              <UnextActions connected={!!unext} />
             </div>
           </li>
 

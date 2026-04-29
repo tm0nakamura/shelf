@@ -50,6 +50,61 @@ export function SteamActions({ connected }: { connected: boolean }) {
   )
 }
 
+export function UnextActions({ connected }: { connected: boolean }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  if (!connected) {
+    return (
+      <a
+        href="/settings/unext/connect"
+        className="rounded-lg bg-[#000a17] hover:bg-[#0a1730] text-white font-bold text-sm px-4 py-2 transition border border-[#0080de]/40"
+      >
+        連携する
+      </a>
+    )
+  }
+
+  async function sync() {
+    setSyncMsg('同期中…')
+    const res = await fetch('/api/unext/sync', { method: 'POST' })
+    const json = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setSyncMsg(`+${json.added ?? 0}件 (動画 ${json.episodes ?? 0} / 漫画 ${json.comics ?? 0} / 書籍 ${json.books ?? 0})`)
+      startTransition(() => router.refresh())
+    } else {
+      const msg = String(json.error ?? res.status)
+      // Common case: cookies expired → friendlier nudge.
+      if (/_at_missing|unauthorized|invalid_token|401|403/i.test(msg)) {
+        setSyncMsg('セッション切れ。再度 Cookie を貼り直してください')
+      } else {
+        setSyncMsg(`失敗: ${msg.slice(0, 80)}`)
+      }
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {syncMsg && <span className="text-xs text-white/60">{syncMsg}</span>}
+      <a
+        href="/settings/unext/connect"
+        className="rounded-lg border border-white/10 hover:bg-white/10 text-white/70 hover:text-white text-xs px-3 py-2"
+      >
+        Cookie 更新
+      </a>
+      <button
+        type="button"
+        onClick={sync}
+        disabled={isPending}
+        className="rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-sm px-4 py-2 disabled:opacity-50"
+      >
+        いま同期
+      </button>
+    </div>
+  )
+}
+
 export function GmailActions({ connected }: { connected: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
