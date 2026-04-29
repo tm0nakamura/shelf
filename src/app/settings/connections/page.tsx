@@ -83,7 +83,7 @@ export default async function ConnectionsPage({
                     ? steam.status === 'active'
                       ? `連携中 · 最終同期 ${formatTime(steam.last_synced_at)}`
                       : `エラー (${steam.error_count})`
-                    : 'OpenID で SteamID 取得 → 所有ゲーム + 直近プレイを毎日同期'}
+                    : 'OpenID で SteamID 取得 → 所有ゲーム + 直近プレイを取り込み（同期は「いま同期」ボタンで）'}
                 </div>
               </div>
               <SteamActions connected={!!steam} />

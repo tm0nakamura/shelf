@@ -1,12 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/jumpplus",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/steam",
-      "schedule": "30 9 * * *"
-    }
-  ]
+  "crons": []
 }
