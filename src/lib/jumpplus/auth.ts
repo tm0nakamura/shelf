@@ -76,5 +76,11 @@ export async function verifyCookies(cookies: SerializedCookie[]): Promise<boolea
   })
   if (!res.ok) return false
   if (/\/(?:login|signin)/i.test(res.url)) return false
+  // /my redirects to homepage / when auth isn't recognised, even though
+  // the user's browser shows a logged-in /my just fine. Require the
+  // final URL to still be under /my so we don't falsely greenlight an
+  // unauthenticated session.
+  const u = new URL(res.url)
+  if (!u.pathname.startsWith('/my')) return false
   return true
 }

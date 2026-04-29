@@ -93,6 +93,38 @@ export async function GET() {
     }
   }
 
+  // Look for any embedded JSON data (Next.js / Nuxt / Rails SSR pattern)
+  const jsonScripts: Array<{ id: string | null; preview: string }> = []
+  const jsonScriptRe = /<script\s+(?:type=["']application\/json["']|type=["']application\/ld\+json["'])(?:\s+id=["']([^"']+)["'])?[^>]*>([\s\S]*?)<\/script>/gi
+  let s: RegExpExecArray | null
+  while ((s = jsonScriptRe.exec(html)) !== null) {
+    jsonScripts.push({
+      id: s[1] ?? null,
+      preview: s[2].trim().slice(0, 400),
+    })
+  }
+
+  // Slice around the 閲覧履歴 marker
+  let aroundHistory: string | null = null
+  const histIdx = html.indexOf('閲覧履歴')
+  if (histIdx >= 0) {
+    aroundHistory = html.slice(Math.max(0, histIdx - 200), histIdx + 1500)
+  }
+
+  let aroundLastRead: string | null = null
+  const lastReadIdx = html.indexOf('最後に読んだ')
+  if (lastReadIdx >= 0) {
+    aroundLastRead = html.slice(Math.max(0, lastReadIdx - 200), lastReadIdx + 1500)
+  }
+
+  // Search for API endpoint references in the HTML — Jump+ has
+  // data-endpoint="/jump_plus" so the JS likely calls /jump_plus/<thing>.
+  const apiPaths = Array.from(
+    new Set(
+      [...html.matchAll(/['"`](\/jump_plus\/[^'"`\s)]+)/g)].map((m) => m[1]),
+    ),
+  ).slice(0, 30)
+
   return NextResponse.json({
     status: res.status,
     final_url: res.url,
@@ -107,6 +139,10 @@ export async function GET() {
     anchors_with_img: allAnchors.filter((a) => a.has_img).length,
     sample_anchors: allAnchors.slice(0, 8),
     other_card_hrefs_sample: Array.from(new Set(otherHrefs)).slice(0, 12),
+    embedded_json_scripts: jsonScripts,
+    around_last_read: aroundLastRead,
+    around_history: aroundHistory,
+    discovered_api_paths: apiPaths,
     html_head_4k: html.slice(0, 4000),
   })
 }
