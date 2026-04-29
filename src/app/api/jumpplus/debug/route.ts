@@ -157,6 +157,104 @@ export async function GET() {
     myJsonError = e instanceof Error ? e.message : String(e)
   }
 
+  // Probe a barrage of likely Jump+ history-related endpoints.
+  const candidates = [
+    '/histories.json',
+    '/reading_histories.json',
+    '/recent_chapters.json',
+    '/last_reading.json',
+    '/my/histories.json',
+    '/my/reading_histories.json',
+    '/my/recent.json',
+    '/my/recent_chapters.json',
+    '/my/last_reading.json',
+    '/my/bookshelf.json',
+    '/my/episode_histories.json',
+    '/me/histories.json',
+    '/me/reading_histories.json',
+    '/api/v1/me/histories',
+    '/api/v1/me/reading_histories',
+    '/api/v1/me/recent_chapters',
+    '/jump_plus/histories.json',
+    '/jump_plus/my/histories.json',
+    '/update_notifications.json',
+  ]
+  const candidate_probes = await Promise.all(
+    candidates.map(async (path) => {
+      const url = `https://shonenjumpplus.com${path}`
+      try {
+        const r = await fetch(url, {
+          headers: {
+            Cookie: cookieHeader,
+            Accept: 'application/json, text/plain, */*',
+            'Accept-Language': 'ja,en-US;q=0.7,en;q=0.3',
+            'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Referer: 'https://shonenjumpplus.com/my',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Dest': 'empty',
+          },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(8_000),
+        })
+        const text = await r.text()
+        return {
+          path,
+          status: r.status,
+          size: text.length,
+          is_json: /^[[{]/.test(text.trim()),
+          snippet: text.slice(0, 250),
+        }
+      } catch (e) {
+        return {
+          path,
+          status: null as number | null,
+          size: 0,
+          is_json: false,
+          snippet: e instanceof Error ? e.message : String(e),
+        }
+      }
+    }),
+  )
+
+  // Find the bundle.js URL in the HTML and grep it for endpoint patterns.
+  const bundleMatch = html.match(/<script[^>]*src=["']([^"']*bundle[^"']*)["']/i)
+  let bundle_url: string | null = null
+  let bundle_size: number | null = null
+  let bundle_endpoint_strings: string[] = []
+  if (bundleMatch) {
+    const raw = bundleMatch[1]
+    bundle_url = raw.startsWith('http')
+      ? raw
+      : `https://cdn-ak.shonenjumpplus.com${raw}`
+    try {
+      const br = await fetch(bundle_url, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      })
+      const text = await br.text()
+      bundle_size = text.length
+      const found = new Set<string>()
+      for (const re of [
+        /['"`]\/[a-z][a-z0-9_./-]*\.json['"`]/gi,
+        /['"`]\/api\/v\d+\/[a-z0-9_./-]+['"`]/gi,
+        /['"`]\/jump_plus\/[a-z0-9_./-]+['"`]/gi,
+        /['"`]\/(?:my|me|histories|recent|update_notifications|episodes|series)\/[a-z0-9_./-]+['"`]/gi,
+      ]) {
+        const matches = text.match(re) ?? []
+        for (const m of matches) {
+          found.add(m.slice(1, -1)) // strip quotes
+        }
+      }
+      bundle_endpoint_strings = Array.from(found).sort().slice(0, 80)
+    } catch (e) {
+      bundle_endpoint_strings = [
+        `[bundle fetch failed: ${e instanceof Error ? e.message : String(e)}]`,
+      ]
+    }
+  }
+
   return NextResponse.json({
     status: res.status,
     final_url: res.url,
@@ -169,17 +267,16 @@ export async function GET() {
     has_last_read_marker: /最後に読んだ/i.test(html),
     anchors_found: allAnchors.length,
     anchors_with_img: allAnchors.filter((a) => a.has_img).length,
-    sample_anchors: allAnchors.slice(0, 8),
-    other_card_hrefs_sample: Array.from(new Set(otherHrefs)).slice(0, 12),
-    embedded_json_scripts: jsonScripts,
+    my_json_logged_in:
+      typeof myJsonBody === 'object' && myJsonBody !== null
+        ? (myJsonBody as Record<string, unknown>).logged_in === true
+        : null,
+    candidate_probes: candidate_probes.filter((p) => p.status !== 404),
+    candidate_probes_404_count: candidate_probes.filter((p) => p.status === 404).length,
+    bundle_url,
+    bundle_size,
+    bundle_endpoint_strings,
     around_last_read: aroundLastRead,
     around_history: aroundHistory,
-    discovered_api_paths: apiPaths,
-    my_json: {
-      status: myJsonStatus,
-      error: myJsonError,
-      body: myJsonBody,
-    },
-    html_head_4k: html.slice(0, 4000),
   })
 }
