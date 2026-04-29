@@ -182,9 +182,29 @@ function CatTab({
   )
 }
 
+/**
+ * Each category gets a silhouette that reads as the medium it belongs to:
+ *   - book / comic   → tall portrait with a spine shadow on the left
+ *   - film / anime / drama → tall portrait, theatrical-poster proportions
+ *   - music          → square album-jacket
+ *   - game           → wide Steam-style banner
+ *   - live_event     → landscape ticket with perforated edges
+ */
+const STACK_SHAPE: Record<Category, string> = {
+  book: styles.stackBook,
+  comic: styles.stackBook,
+  film: styles.stackFilm,
+  anime: styles.stackFilm,
+  drama: styles.stackFilm,
+  music: styles.stackMusic,
+  game: styles.stackGame,
+  live_event: styles.stackLive,
+}
+
 function FilledCell({ category, items }: { category: Category; items: ShelfItem[] }) {
   const featured = items[0]
   const hasCover = !!featured.cover_image_url
+  const shape = STACK_SHAPE[category]
 
   // Up to 2 supporting covers fan out behind the featured one — picked
   // from the next items that actually have an image. The featured cover
@@ -205,7 +225,7 @@ function FilledCell({ category, items }: { category: Category; items: ShelfItem[
             <img
               src={supporting[0].cover_image_url!}
               alt=""
-              className={`${styles.stackImg} ${styles.stackLeft}`}
+              className={`${styles.stackImg} ${shape} ${styles.stackLeft}`}
             />
           )}
           {supporting[1] && (
@@ -213,14 +233,14 @@ function FilledCell({ category, items }: { category: Category; items: ShelfItem[
             <img
               src={supporting[1].cover_image_url!}
               alt=""
-              className={`${styles.stackImg} ${styles.stackRight}`}
+              className={`${styles.stackImg} ${shape} ${styles.stackRight}`}
             />
           )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={featured.cover_image_url!}
             alt=""
-            className={`${styles.stackImg} ${styles.stackFront}`}
+            className={`${styles.stackImg} ${shape} ${styles.stackFront}`}
           />
         </div>
       ) : null}

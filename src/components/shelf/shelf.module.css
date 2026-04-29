@@ -278,8 +278,10 @@
 }
 
 /* fanned stack of covers — featured up front, two supporters peeking
-   out from behind. Ratios picked so a typical 2:3 book/film cover fits
-   inside a square-ish .tasteCell with breathing room. */
+   out from behind. Per-category aspect-ratio classes (.stackBook /
+   .stackFilm / .stackMusic / .stackGame / .stackLive) give each genre
+   a recognizable silhouette: tall books, square albums, wide game
+   banners, ticket-shaped live stubs. */
 .coverStack {
   flex: 1;
   min-height: 0;
@@ -287,20 +289,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px 18px 10px;
+  padding: 14px 14px 10px;
   position: relative;
 }
 .stackImg {
   position: absolute;
-  width: 50%;
-  height: auto;
-  max-height: 78%;
-  object-fit: contain;
-  border-radius: 3px;
-  filter:
-    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5))
-    drop-shadow(0 8px 14px rgba(0, 0, 0, 0.16))
-    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+  object-fit: cover;
+  /* drop-shadow on box (not filter) so it composites with inset spines */
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5),
+    0 8px 14px rgba(0, 0, 0, 0.16),
+    0 2px 4px rgba(0, 0, 0, 0.08);
   transition: transform 220ms ease, opacity 220ms ease;
 }
 .stackFront {
@@ -322,6 +321,81 @@
 }
 .tasteCell:hover .stackRight {
   transform: translateX(38%) rotate(10deg) scale(0.94);
+}
+
+/* Book / comic: portrait 2:3 with a hairline spine shadow on the left
+   edge so the cover reads as a hard-bound book rather than a flat tile. */
+.stackBook {
+  width: 48%;
+  aspect-ratio: 2 / 3;
+  border-radius: 1px 3px 3px 1px;
+  box-shadow:
+    inset 4px 0 6px -3px rgba(0, 0, 0, 0.42),
+    inset 1.5px 0 0 rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.5),
+    0 8px 14px rgba(0, 0, 0, 0.16),
+    0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Film / anime / drama: same portrait 2:3 (theatrical poster) but with
+   a thin matte border instead of a spine to read as printed-and-pinned. */
+.stackFilm {
+  width: 48%;
+  aspect-ratio: 2 / 3;
+  border-radius: 2px;
+  outline: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Music: 1:1, slightly rounded — album jewel-case face. */
+.stackMusic {
+  width: 58%;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+}
+
+/* Game: Steam header banner aspect (≈92:43). Wider than tall so the
+   stack feels like a console shelf rather than a paperback shelf. */
+.stackGame {
+  width: 80%;
+  aspect-ratio: 92 / 43;
+  border-radius: 4px;
+}
+/* Game stack offsets are vertical-er — landscape titles look weird
+   when fanned sideways the same way a book does. */
+.stackGame.stackLeft {
+  transform: translateX(-12%) translateY(-14%) rotate(-4deg) scale(0.93);
+}
+.stackGame.stackRight {
+  transform: translateX(12%) translateY(14%) rotate(3deg) scale(0.94);
+}
+.tasteCell:hover .stackGame.stackLeft {
+  transform: translateX(-15%) translateY(-18%) rotate(-6deg) scale(0.93);
+}
+.tasteCell:hover .stackGame.stackRight {
+  transform: translateX(15%) translateY(18%) rotate(5deg) scale(0.94);
+}
+
+/* Live event: ticket-shaped landscape with two perforated edges.
+   The radial-gradient masks fake the half-circles you get on a torn
+   stub without needing extra DOM. */
+.stackLive {
+  width: 80%;
+  aspect-ratio: 2 / 1;
+  border-radius: 4px;
+  -webkit-mask:
+    radial-gradient(circle 5px at 0 50%, transparent 98%, #000 100%) left / 100% 100% no-repeat,
+    radial-gradient(circle 5px at 100% 50%, transparent 98%, #000 100%) right / 100% 100% no-repeat;
+          mask:
+    radial-gradient(circle 5px at 0 50%, transparent 98%, #000 100%) left / 100% 100% no-repeat,
+    radial-gradient(circle 5px at 100% 50%, transparent 98%, #000 100%) right / 100% 100% no-repeat;
+  -webkit-mask-composite: source-over;
+          mask-composite: intersect;
+}
+.stackLive.stackLeft {
+  transform: translateX(-10%) translateY(-12%) rotate(-3deg) scale(0.94);
+}
+.stackLive.stackRight {
+  transform: translateX(10%) translateY(12%) rotate(3deg) scale(0.94);
 }
 
 /* "+N" pill so the user can see how many more items live underneath
