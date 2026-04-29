@@ -125,6 +125,38 @@ export async function GET() {
     ),
   ).slice(0, 30)
 
+  // Also try the JSON API the page uses for personal data:
+  // https://shonenjumpplus.com/my.json
+  let myJsonStatus: number | null = null
+  let myJsonBody: unknown = null
+  let myJsonError: string | null = null
+  try {
+    const jr = await fetch('https://shonenjumpplus.com/my.json', {
+      headers: {
+        Cookie: cookieHeader,
+        Accept: 'application/json, text/plain, */*',
+        'Accept-Language': 'ja,en-US;q=0.7,en;q=0.3',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://shonenjumpplus.com/my',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+      },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    })
+    myJsonStatus = jr.status
+    const text = await jr.text()
+    try {
+      myJsonBody = JSON.parse(text)
+    } catch {
+      myJsonBody = text.slice(0, 4000)
+    }
+  } catch (e) {
+    myJsonError = e instanceof Error ? e.message : String(e)
+  }
+
   return NextResponse.json({
     status: res.status,
     final_url: res.url,
@@ -143,6 +175,11 @@ export async function GET() {
     around_last_read: aroundLastRead,
     around_history: aroundHistory,
     discovered_api_paths: apiPaths,
+    my_json: {
+      status: myJsonStatus,
+      error: myJsonError,
+      body: myJsonBody,
+    },
     html_head_4k: html.slice(0, 4000),
   })
 }
