@@ -28,7 +28,6 @@ export default async function ConnectionsPage({
     .eq('user_id', userRes.user.id)
 
   const gmail = connections?.find((c) => c.provider === 'gmail')
-  const jumpplus = connections?.find((c) => c.provider === 'jumpplus')
 
   return (
     <main className="min-h-dvh bg-[#14110f] text-white px-6 py-12">
@@ -82,45 +81,21 @@ export default async function ConnectionsPage({
             </div>
           </li>
 
-          <li className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#1a1a1a] flex items-center justify-center font-black text-[#ff3d3d]">J+</div>
-              <div className="flex-1">
-                <div className="font-bold">少年ジャンプ+ <span className="text-[10px] tracking-wider uppercase text-yellow-400/70 ml-2">⚠ 規約グレー</span></div>
-                <div className="text-xs text-white/50 mt-0.5">
-                  {jumpplus
-                    ? jumpplus.status === 'active'
-                      ? `連携中 · 最終同期 ${formatTime(jumpplus.last_synced_at)}`
-                      : `エラー (${jumpplus.error_count})`
-                    : 'ID/PW 保存 + サーバ側で日次自動同期'}
-                </div>
-              </div>
-              <Link
-                href="/settings/jumpplus"
-                className="rounded-lg bg-white/10 hover:bg-white/15 text-white font-medium tracking-wide text-xs px-4 py-2"
-              >
-                {jumpplus ? '管理' : '設定する'}
-              </Link>
-            </div>
-          </li>
-
-          <li className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-black">📚</div>
-              <div className="flex-1">
-                <div className="font-bold">ブックマークレット</div>
-                <div className="text-xs text-white/50 mt-0.5">
-                  サービス側でブラウザ クリック 1 回で取り込む（ローカル完結）
-                </div>
-              </div>
-              <Link
-                href="/settings/bookmarklets"
-                className="rounded-lg bg-white/10 hover:bg-white/15 text-white font-medium tracking-wide text-xs px-4 py-2"
-              >
-                設定する
-              </Link>
-            </div>
-          </li>
+          {/*
+           * Jump+ and bookmarklet connection cards are intentionally hidden.
+           *
+           * Jump+ stores reading history entirely in browser localStorage
+           * (key: history_manager) — no server-side API exposes it. The only
+           * paths that work are (a) bookmarklet, which the user opted out
+           * of, or (b) a future mobile app WebView that can read the same
+           * localStorage. Until that ships, we don't surface Jump+ here so
+           * the page reflects reality.
+           *
+           * The underlying routes (/settings/jumpplus, /settings/bookmarklets,
+           * /api/jumpplus/*, /bm/jumpplus, /api/cron/jumpplus, vercel.json
+           * cron) are kept intact so we can re-enable the link in one diff
+           * once the mobile path lands.
+           */}
 
           <li className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 opacity-50">
             <div className="flex items-center gap-4">
