@@ -137,8 +137,8 @@ export function Shelf({ data }: { data: ShelfData }) {
         {activeTab === 'all' ? (
           <div className={styles.tasteGrid}>
             {sortedCategories.map((c) => {
-              const item = data.byCategory[c]?.[0]
-              if (item) return <FilledCell key={c} category={c} item={item} />
+              const items = data.byCategory[c] ?? []
+              if (items.length > 0) return <FilledCell key={c} category={c} items={items} />
               return <EmptyCell key={c} category={c} />
             })}
           </div>
@@ -182,20 +182,54 @@ function CatTab({
   )
 }
 
-function FilledCell({ category, item }: { category: Category; item: ShelfItem }) {
-  const hasCover = !!item.cover_image_url
+function FilledCell({ category, items }: { category: Category; items: ShelfItem[] }) {
+  const featured = items[0]
+  const hasCover = !!featured.cover_image_url
+
+  // Up to 2 supporting covers fan out behind the featured one — picked
+  // from the next items that actually have an image. The featured cover
+  // sits dead-center; the others tilt left and right so the eye reads
+  // "this category has more underneath."
+  const supporting = items
+    .slice(1)
+    .filter((it) => !!it.cover_image_url)
+    .slice(0, 2)
+
   return (
     <div className={`${styles.tasteCell} ${hasCover ? styles.tasteCellWithCover : ''}`}>
       <span className={styles.genre}>{CATEGORY_LABELS[category]}</span>
       {hasCover ? (
-        <div className={styles.coverBox}>
+        <div className={styles.coverStack}>
+          {supporting[0] && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={supporting[0].cover_image_url!}
+              alt=""
+              className={`${styles.stackImg} ${styles.stackLeft}`}
+            />
+          )}
+          {supporting[1] && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={supporting[1].cover_image_url!}
+              alt=""
+              className={`${styles.stackImg} ${styles.stackRight}`}
+            />
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.cover_image_url!} alt="" className={styles.coverImg} />
+          <img
+            src={featured.cover_image_url!}
+            alt=""
+            className={`${styles.stackImg} ${styles.stackFront}`}
+          />
         </div>
       ) : null}
       <div className={styles.lbl}>
-        {item.creator && <span className={styles.a}>{item.creator}</span>}
-        <span className={styles.t}>{item.title}</span>
+        {featured.creator && <span className={styles.a}>{featured.creator}</span>}
+        <span className={styles.t}>{featured.title}</span>
+        {items.length > 1 && (
+          <span className={styles.more}>+{items.length - 1}</span>
+        )}
       </div>
     </div>
   )

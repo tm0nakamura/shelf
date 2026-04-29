@@ -276,6 +276,80 @@
     drop-shadow(0 8px 14px rgba(0, 0, 0, 0.16))
     drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
 }
+
+/* fanned stack of covers — featured up front, two supporters peeking
+   out from behind. Ratios picked so a typical 2:3 book/film cover fits
+   inside a square-ish .tasteCell with breathing room. */
+.coverStack {
+  flex: 1;
+  min-height: 0;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 18px 10px;
+  position: relative;
+}
+.stackImg {
+  position: absolute;
+  width: 50%;
+  height: auto;
+  max-height: 78%;
+  object-fit: contain;
+  border-radius: 3px;
+  filter:
+    drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5))
+    drop-shadow(0 8px 14px rgba(0, 0, 0, 0.16))
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+.stackFront {
+  z-index: 3;
+  transform: translateX(0) rotate(0);
+}
+.stackLeft {
+  z-index: 1;
+  transform: translateX(-32%) rotate(-8deg) scale(0.92);
+  opacity: 0.86;
+}
+.stackRight {
+  z-index: 2;
+  transform: translateX(32%) rotate(7deg) scale(0.94);
+  opacity: 0.9;
+}
+.tasteCell:hover .stackLeft {
+  transform: translateX(-38%) rotate(-11deg) scale(0.92);
+}
+.tasteCell:hover .stackRight {
+  transform: translateX(38%) rotate(10deg) scale(0.94);
+}
+
+/* "+N" pill so the user can see how many more items live underneath
+   the featured one without leaving "ぜんぶ". Positioned to .tasteCell
+   so it survives both with-cover and text-only layouts. */
+.tasteCell .more {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  z-index: 4;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.96);
+  background: rgba(0, 0, 0, 0.42);
+  padding: 4px 8px;
+  border-radius: 100px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.tasteCellWithCover .more {
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
 .tasteCellWithCover .lbl {
   position: static;
   padding: 0 14px 14px;
