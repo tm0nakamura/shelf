@@ -244,13 +244,9 @@ function FilledCell({ category, items }: { category: Category; items: ShelfItem[
           />
         </div>
       ) : null}
-      <div className={styles.lbl}>
-        {featured.creator && <span className={styles.a}>{featured.creator}</span>}
-        <span className={styles.t}>{featured.title}</span>
-        {items.length > 1 && (
-          <span className={styles.more}>+{items.length - 1}</span>
-        )}
-      </div>
+      {items.length > 1 && (
+        <span className={styles.more}>+{items.length - 1}</span>
+      )}
     </div>
   )
 }
