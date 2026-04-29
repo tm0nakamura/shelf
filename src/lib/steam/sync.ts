@@ -133,6 +133,8 @@ export async function syncSteam(connectionId: string): Promise<SyncResult> {
       error_message: result.private_profile ? 'profile_private_or_empty' : null,
     })
   } catch (e) {
+    const errMsg = describeError(e)
+    console.error('[steam/sync] failed:', e)
     await supabase
       .from('connections')
       .update({ error_count: 1, status: 'error' })
@@ -145,10 +147,29 @@ export async function syncSteam(connectionId: string): Promise<SyncResult> {
       items_added: 0,
       items_updated: 0,
       items_failed: 1,
-      error_message: e instanceof Error ? e.message : String(e),
+      error_message: errMsg,
     })
-    throw e
+    throw new Error(errMsg)
   }
 
   return result
+}
+
+function describeError(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object') {
+    const obj = e as Record<string, unknown>
+    const parts: string[] = []
+    if (typeof obj.message === 'string') parts.push(obj.message)
+    if (typeof obj.code === 'string') parts.push(`code=${obj.code}`)
+    if (typeof obj.details === 'string') parts.push(`details=${obj.details}`)
+    if (typeof obj.hint === 'string') parts.push(`hint=${obj.hint}`)
+    if (parts.length > 0) return parts.join(' | ')
+    try {
+      return JSON.stringify(e)
+    } catch {
+      return String(e)
+    }
+  }
+  return String(e)
 }

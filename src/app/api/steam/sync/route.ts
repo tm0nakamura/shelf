@@ -27,9 +27,13 @@ export async function POST(_request: NextRequest) {
     const result = await syncSteam(conn.id)
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'sync_failed' },
-      { status: 500 },
-    )
+    const msg =
+      e instanceof Error
+        ? e.message
+        : e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+          ? (e as { message: string }).message
+          : JSON.stringify(e)
+    console.error('[steam/sync] failed:', e)
+    return NextResponse.json({ error: msg || 'sync_failed' }, { status: 500 })
   }
 }
