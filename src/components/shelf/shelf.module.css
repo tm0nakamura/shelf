@@ -337,13 +337,29 @@
     0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
-/* Film / anime / drama: same portrait 2:3 (theatrical poster) but with
-   a thin matte border instead of a spine to read as printed-and-pinned. */
+/* Film / anime / drama: 16:9 landscape — matches U-NEXT's native
+   episode thumb aspect so we don't have to crop their stills. Reads
+   as a TV/cinema still rather than a printed poster, which is closer
+   to what the source material actually is. */
 .stackFilm {
-  width: 48%;
-  aspect-ratio: 2 / 3;
-  border-radius: 2px;
+  width: 78%;
+  aspect-ratio: 16 / 9;
+  border-radius: 3px;
   outline: 1px solid rgba(0, 0, 0, 0.06);
+}
+/* Same vertical stagger trick as games — landscape art fanned sideways
+   the way books do looks awkward; staggering up/down reads correctly. */
+.stackFilm.stackLeft {
+  transform: translateX(-12%) translateY(-14%) rotate(-4deg) scale(0.93);
+}
+.stackFilm.stackRight {
+  transform: translateX(12%) translateY(14%) rotate(3deg) scale(0.94);
+}
+.tasteCell:hover .stackFilm.stackLeft {
+  transform: translateX(-15%) translateY(-18%) rotate(-6deg) scale(0.93);
+}
+.tasteCell:hover .stackFilm.stackRight {
+  transform: translateX(15%) translateY(18%) rotate(5deg) scale(0.94);
 }
 
 /* Music: 1:1, slightly rounded — album jewel-case face. */
