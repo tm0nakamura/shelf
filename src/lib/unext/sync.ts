@@ -1,7 +1,14 @@
 import 'server-only'
 import { adminClient } from '@/lib/supabase/admin'
-import { decryptJson } from '@/lib/crypto'
-import { fetchHistoryAll, unextThumbnailUrl, type UnextRequestContext } from './api'
+import { decryptJson, encryptJson } from '@/lib/crypto'
+import { fetchHistoryAllRaw, unextThumbnailUrl, type UnextRequestContext } from './api'
+import {
+  decodeJwtExp,
+  parseSetCookies,
+  readCookieValue,
+  refreshAccessToken,
+  setCookieValue,
+} from './refresh'
 
 export type StoredUnextCreds = {
   cookieHeader: string
@@ -78,8 +85,32 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
   const stored = decryptJson<StoredUnextCreds>(
     (conn as { credentials_encrypted: string | Uint8Array }).credentials_encrypted,
   )
+
+  // Token-management state. We start from what was persisted, mutate
+  // through the call (Set-Cookie rotations and OAuth refreshes), then
+  // write any change back at the end of the sync.
+  let cookieHeader = stored.cookieHeader
+  let creds: StoredUnextCreds = stored
+  let credsDirty = false
+
+  // Proactive refresh — if `_at` expires within 5 minutes, do the OAuth
+  // dance now so the GraphQL call doesn't get an in-flight 401.
+  try {
+    const refreshed = await maybeProactiveRefresh(cookieHeader)
+    if (refreshed !== cookieHeader) {
+      cookieHeader = refreshed
+      creds = { ...creds, cookieHeader: refreshed }
+      credsDirty = true
+    }
+  } catch (e) {
+    // Soft-fail: if refresh blew up, fall through to the GraphQL call
+    // with the (possibly expired) token. The 401 path below has its
+    // own retry, and an inert refresh on a still-valid token is fine.
+    console.warn('[unext/sync] proactive refresh failed, continuing:', e)
+  }
+
   const ctx: UnextRequestContext = {
-    cookieHeader: stored.cookieHeader,
+    cookieHeader,
     zxuid: stored.zxuid,
     zxemp: stored.zxemp,
   }
@@ -95,9 +126,51 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
   }
 
   try {
-    const json = await fetchHistoryAll(ctx, { videoPageSize: 50, bookPageSize: 50 })
-    const episodes = json.data?.episodeHistory ?? []
-    const books = json.data?.bookHistory?.books ?? []
+    let raw = await fetchHistoryAllRaw(ctx, { videoPageSize: 50, bookPageSize: 50 })
+
+    // Pick up any Set-Cookie rotation U-NEXT silently emits on success.
+    if (raw.setCookie) {
+      const rotated = applySetCookies(ctx.cookieHeader, raw.setCookie)
+      if (rotated !== ctx.cookieHeader) {
+        ctx.cookieHeader = rotated
+        creds = { ...creds, cookieHeader: rotated }
+        credsDirty = true
+      }
+    }
+
+    // Reactive refresh — if cc.unext.jp rejected us, try the OAuth
+    // refresh path once and retry the GraphQL call. We don't loop;
+    // a second 401 means the refresh token itself is dead.
+    if (raw.status === 401 || raw.status === 403) {
+      const newAt = await tryReactiveRefresh(ctx.cookieHeader)
+      if (!newAt) {
+        throw new Error(`unext_unauthorized_${raw.status}: refresh failed`)
+      }
+      ctx.cookieHeader = setCookieValue(ctx.cookieHeader, '_at', newAt.accessToken)
+      if (newAt.refreshToken) {
+        ctx.cookieHeader = setCookieValue(ctx.cookieHeader, '_rt', newAt.refreshToken)
+      }
+      creds = { ...creds, cookieHeader: ctx.cookieHeader }
+      credsDirty = true
+
+      raw = await fetchHistoryAllRaw(ctx, { videoPageSize: 50, bookPageSize: 50 })
+      if (raw.status === 401 || raw.status === 403) {
+        throw new Error(`unext_unauthorized_${raw.status}: post-refresh still rejected`)
+      }
+    }
+
+    if (raw.json.errors?.length) {
+      const code = raw.json.errors[0]?.extensions?.code
+      if (code === 'PERSISTED_QUERY_NOT_FOUND') {
+        throw new Error(
+          'persisted_query_not_found: U-NEXT rotated client queries; re-capture COSMO_GET_HISTORY_ALL_HASH',
+        )
+      }
+      throw new Error(`unext_graphql_error: ${raw.json.errors[0]?.message ?? 'unknown'}`)
+    }
+
+    const episodes = raw.json.data?.episodeHistory ?? []
+    const books = raw.json.data?.bookHistory?.books ?? []
 
     type VideoCategory = 'film' | 'anime' | 'drama'
     type Row = {
@@ -192,15 +265,16 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       result.added = count ?? rows.length
     }
 
-    await supabase
-      .from('connections')
-      .update({
-        last_synced_at: new Date().toISOString(),
-        next_sync_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        error_count: 0,
-        status: 'active',
-      })
-      .eq('id', connectionId)
+    const update: Record<string, unknown> = {
+      last_synced_at: new Date().toISOString(),
+      next_sync_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      error_count: 0,
+      status: 'active',
+    }
+    if (credsDirty) {
+      update.credentials_encrypted = encryptJson(creds)
+    }
+    await supabase.from('connections').update(update).eq('id', connectionId)
 
     await supabase.from('sync_logs').insert({
       connection_id: connectionId,
@@ -233,6 +307,57 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
   }
 
   return result
+}
+
+/**
+ * If the access token expires within REFRESH_LEAD_SECONDS, swap it out
+ * before the GraphQL call. Returns the (possibly updated) cookie header;
+ * the caller merges it into `creds` and marks `credsDirty`.
+ */
+const REFRESH_LEAD_SECONDS = 5 * 60
+async function maybeProactiveRefresh(cookieHeader: string): Promise<string> {
+  const at = readCookieValue(cookieHeader, '_at')
+  const rt = readCookieValue(cookieHeader, '_rt')
+  if (!at || !rt) return cookieHeader
+
+  const exp = decodeJwtExp(at)
+  if (!exp) return cookieHeader
+  const remaining = exp - Math.floor(Date.now() / 1000)
+  if (remaining > REFRESH_LEAD_SECONDS) return cookieHeader
+
+  const refreshed = await refreshAccessToken(rt)
+  let next = setCookieValue(cookieHeader, '_at', refreshed.accessToken)
+  if (refreshed.refreshToken) {
+    next = setCookieValue(next, '_rt', refreshed.refreshToken)
+  }
+  return next
+}
+
+/** Best-effort OAuth refresh after a 401 — swallow non-throws. */
+async function tryReactiveRefresh(
+  cookieHeader: string,
+): Promise<{ accessToken: string; refreshToken: string | null } | null> {
+  const rt = readCookieValue(cookieHeader, '_rt')
+  if (!rt) return null
+  try {
+    const r = await refreshAccessToken(rt)
+    return { accessToken: r.accessToken, refreshToken: r.refreshToken ?? null }
+  } catch (e) {
+    console.warn('[unext/sync] reactive refresh failed:', e)
+    return null
+  }
+}
+
+/** Take a Set-Cookie string from a response and merge into our Cookie header. */
+function applySetCookies(cookieHeader: string, setCookieHeader: string): string {
+  const rotated = parseSetCookies(setCookieHeader)
+  let out = cookieHeader
+  for (const [name, value] of rotated) {
+    if (name === '_at' || name === '_rt' || name === 'current') {
+      out = setCookieValue(out, name, value)
+    }
+  }
+  return out
 }
 
 function describeError(e: unknown): string {

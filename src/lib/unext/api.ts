@@ -65,10 +65,43 @@ export type UnextRequestContext = {
   zxemp: string
 }
 
+/**
+ * cosmo_getHistoryAll wraps the response in our own envelope so the
+ * sync layer can pick up Set-Cookie rotations (the U-NEXT web client
+ * silently rewrites `_at` on most requests, and we want to mirror that).
+ */
+export type FetchHistoryAllResult = {
+  json: CosmoHistoryAll
+  /** Raw Set-Cookie header(s) — null when nothing was rotated. */
+  setCookie: string | null
+  /** HTTP status, surfaced so the caller can detect 401/403 and refresh. */
+  status: number
+}
+
 export async function fetchHistoryAll(
   ctx: UnextRequestContext,
   opts?: { videoPageSize?: number; bookPageSize?: number },
 ): Promise<CosmoHistoryAll> {
+  const wrapped = await fetchHistoryAllRaw(ctx, opts)
+  if (wrapped.status === 401 || wrapped.status === 403) {
+    throw new Error(`unext_unauthorized_${wrapped.status}`)
+  }
+  if (wrapped.json.errors?.length) {
+    const code = wrapped.json.errors[0]?.extensions?.code
+    if (code === 'PERSISTED_QUERY_NOT_FOUND') {
+      throw new Error(
+        'persisted_query_not_found: U-NEXT rotated client queries; re-capture COSMO_GET_HISTORY_ALL_HASH',
+      )
+    }
+    throw new Error(`unext_graphql_error: ${wrapped.json.errors[0]?.message ?? 'unknown'}`)
+  }
+  return wrapped.json
+}
+
+export async function fetchHistoryAllRaw(
+  ctx: UnextRequestContext,
+  opts?: { videoPageSize?: number; bookPageSize?: number },
+): Promise<FetchHistoryAllResult> {
   const variables = {
     videoPageSize: opts?.videoPageSize ?? 50,
     bookPageSize: opts?.bookPageSize ?? 50,
@@ -106,21 +139,16 @@ export async function fetchHistoryAll(
     },
   })
 
-  if (!r.ok) {
+  // Even on 401 we still pull the body — the GraphQL envelope can be
+  // useful in logs. We re-throw further up after the caller has had a
+  // chance to inspect Set-Cookie.
+  const setCookie = r.headers.get('set-cookie')
+  if (!r.ok && r.status !== 401 && r.status !== 403) {
     const body = await r.text().catch(() => '')
     throw new Error(`unext_api_${r.status}: ${body.slice(0, 200)}`)
   }
-  const json = (await r.json()) as CosmoHistoryAll
-  if (json.errors?.length) {
-    const code = json.errors[0]?.extensions?.code
-    if (code === 'PERSISTED_QUERY_NOT_FOUND') {
-      throw new Error(
-        'persisted_query_not_found: U-NEXT rotated client queries; re-capture COSMO_GET_HISTORY_ALL_HASH',
-      )
-    }
-    throw new Error(`unext_graphql_error: ${json.errors[0]?.message ?? 'unknown'}`)
-  }
-  return json
+  const json = (await r.json().catch(() => ({}))) as CosmoHistoryAll
+  return { json, setCookie, status: r.status }
 }
 
 /** U-NEXT thumbnails come back as host-stripped paths (no scheme). */
