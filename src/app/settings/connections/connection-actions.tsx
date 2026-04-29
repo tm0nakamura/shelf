@@ -78,8 +78,12 @@ export function UnextActions({ connected }: { connected: boolean }) {
     } else {
       const msg = String(json.error ?? res.status)
       // Common case: cookies expired → friendlier nudge.
-      if (/_at_missing|unauthorized|invalid_token|401|403/i.test(msg)) {
-        setSyncMsg('セッション切れ。再度 Cookie を貼り直してください')
+      if (
+        /token_expired|token expired|_at_missing|unauthorized|unauthenticated|invalid_token|401|403/i.test(
+          msg,
+        )
+      ) {
+        setSyncMsg('セッション切れ。「Cookie 更新」から貼り直してください')
       } else {
         setSyncMsg(`失敗: ${msg.slice(0, 80)}`)
       }

@@ -138,13 +138,17 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       }
     }
 
-    // Reactive refresh — if cc.unext.jp rejected us, try the OAuth
-    // refresh path once and retry the GraphQL call. We don't loop;
-    // a second 401 means the refresh token itself is dead.
-    if (raw.status === 401 || raw.status === 403) {
+    // Reactive refresh — U-NEXT signals expiry two ways:
+    //   - HTTP 401/403 (rare; happens on some auth-required endpoints)
+    //   - HTTP 200 with errors[0].message = "Token expired" (cosmo's
+    //     usual shape — the GraphQL envelope absorbs the failure)
+    // Both routes need the same recovery: refresh the access token and
+    // retry once. A second failure means the refresh token itself is
+    // dead and we have to surface a re-paste prompt.
+    if (raw.status === 401 || raw.status === 403 || isExpiredEnvelope(raw.json)) {
       const newAt = await tryReactiveRefresh(ctx.cookieHeader)
       if (!newAt) {
-        throw new Error(`unext_unauthorized_${raw.status}: refresh failed`)
+        throw new Error('unext_token_expired_refresh_failed')
       }
       ctx.cookieHeader = setCookieValue(ctx.cookieHeader, '_at', newAt.accessToken)
       if (newAt.refreshToken) {
@@ -154,8 +158,8 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       credsDirty = true
 
       raw = await fetchHistoryAllRaw(ctx, { videoPageSize: 50, bookPageSize: 50 })
-      if (raw.status === 401 || raw.status === 403) {
-        throw new Error(`unext_unauthorized_${raw.status}: post-refresh still rejected`)
+      if (raw.status === 401 || raw.status === 403 || isExpiredEnvelope(raw.json)) {
+        throw new Error('unext_token_expired_post_refresh')
       }
     }
 
@@ -346,6 +350,34 @@ async function tryReactiveRefresh(
     console.warn('[unext/sync] reactive refresh failed:', e)
     return null
   }
+}
+
+/**
+ * Detect "your access token is dead" inside a 200-OK GraphQL response.
+ * U-NEXT's cosmo gateway swallows the underlying 401 and surfaces it as
+ * an envelope error like { errors: [{ message: "Token expired", ... }] }.
+ * We match a small allowlist of message substrings rather than a strict
+ * `extensions.code` because the gateway is inconsistent about populating
+ * extensions.
+ */
+function isExpiredEnvelope(json: { errors?: Array<{ message?: string; extensions?: Record<string, unknown> }> }): boolean {
+  if (!json.errors?.length) return false
+  for (const err of json.errors) {
+    const msg = (err.message ?? '').toLowerCase()
+    const code = String(err.extensions?.code ?? '').toLowerCase()
+    if (
+      msg.includes('token expired') ||
+      msg.includes('token_expired') ||
+      msg.includes('unauthorized') ||
+      msg.includes('unauthenticated') ||
+      code === 'unauthenticated' ||
+      code === 'token_expired' ||
+      code === 'token_invalid'
+    ) {
+      return true
+    }
+  }
+  return false
 }
 
 /** Take a Set-Cookie string from a response and merge into our Cookie header. */
