@@ -34,7 +34,10 @@ export async function GET(request: NextRequest) {
 }
 
 function renderScript(args: { token: string; apiUrl: string }) {
-  // The whole IIFE runs in the page being viewed (Jump+).
+  // Runs in the Jump+ page context. Jump+ keeps the user's reading
+  // history client-side in localStorage under the key "history_manager"
+  // (max 20 items). Read it, normalise into shelf-jp's import shape,
+  // POST to /api/import.
   return `(() => {
   const TOKEN = ${JSON.stringify(args.token)};
   const API = ${JSON.stringify(args.apiUrl)};
@@ -45,13 +48,13 @@ function renderScript(args: { token: string; apiUrl: string }) {
     if (!el) {
       el = document.createElement('div');
       el.id = BANNER_ID;
-      el.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;padding:12px 18px;border-radius:10px;font:600 13px/1.4 system-ui,sans-serif;color:#fff;background:#1a1614;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:320px;';
+      el.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;padding:12px 18px;border-radius:10px;font:600 13px/1.4 system-ui,sans-serif;color:#fff;background:#1a1614;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:340px;';
       document.body.appendChild(el);
     }
     el.style.background = kind === 'err' ? '#7a2030' : kind === 'ok' ? '#1f5b3a' : '#1a1614';
     el.textContent = msg;
     if (kind === 'ok' || kind === 'err') {
-      setTimeout(() => el.remove(), 5000);
+      setTimeout(() => el.remove(), 6000);
     }
   };
 
@@ -64,55 +67,62 @@ function renderScript(args: { token: string; apiUrl: string }) {
     return;
   }
 
-  banner('shelf-jp: 読み込み中…');
-
-  // --- Scrape ---
-  const items = [];
-  document.querySelectorAll('a[href^="/series/"], a[href^="/episode/"]').forEach((a) => {
-    const href = a.getAttribute('href');
-    if (!href) return;
-    const url = new URL(href, location.origin).toString();
-    const seriesMatch = href.match(/\\/series\\/([^/?#]+)/);
-    const episodeMatch = href.match(/\\/episode\\/([^/?#]+)/);
-    const externalId = (seriesMatch && seriesMatch[1]) || (episodeMatch && episodeMatch[1]);
-    if (!externalId) return;
-
-    const img = a.querySelector('img');
-    const cover = (img && (img.getAttribute('src') || img.getAttribute('data-src'))) || null;
-    const titleEl = a.querySelector('h3, h4, .title, [class*="title"], [class*="Title"]');
-    const altText = img && img.getAttribute('alt');
-    const title = ((titleEl && titleEl.textContent) || altText || '').trim();
-    if (!title) return;
-
-    const authorEl = a.querySelector('[class*="author"], [class*="Author"]');
-    const creator = authorEl ? (authorEl.textContent || '').trim() || null : null;
-
-    items.push({
-      category: 'comic',
-      external_id: externalId,
-      title,
-      creator,
-      cover_image_url: cover,
-      source_url: url,
-      consumed_at: new Date().toISOString(),
-      metadata: { kind: seriesMatch ? 'series' : 'episode' },
-    });
-  });
-
-  // Dedup
-  const seen = new Set();
-  const unique = items.filter((it) => {
-    if (seen.has(it.external_id)) return false;
-    seen.add(it.external_id);
-    return true;
-  });
-
-  if (unique.length === 0) {
-    banner('shelf-jp: 取れる作品が見つかりません。/my ページで実行してみてください', 'err');
+  // --- Read localStorage.history_manager ---
+  const raw = localStorage.getItem('history_manager');
+  if (!raw) {
+    banner('shelf-jp: history_manager が空です。Jump+ で何か1話読んでから再実行してください', 'err');
+    return;
+  }
+  let history;
+  try {
+    history = JSON.parse(raw);
+  } catch (e) {
+    banner('shelf-jp: history_manager の JSON パースに失敗 — ' + e.message, 'err');
+    return;
+  }
+  if (!Array.isArray(history) || history.length === 0) {
+    banner('shelf-jp: history_manager が空配列です', 'err');
     return;
   }
 
-  banner('shelf-jp: ' + unique.length + ' 件を送信中…');
+  // --- Map to shelf-jp import items, dedup by series id ---
+  const seen = new Set();
+  const items = [];
+  for (const h of history) {
+    const series = h && h.series ? h.series : null;
+    const episode = h && h.episode ? h.episode : null;
+    const seriesId = series && series.id;
+    if (!seriesId || seen.has(seriesId)) continue;
+    seen.add(seriesId);
+
+    const consumedAt = (() => {
+      const ts = (episode && episode.createAt) || h.createdAt || null;
+      if (!ts) return new Date().toISOString();
+      return new Date(typeof ts === 'number' ? ts : Date.parse(ts)).toISOString();
+    })();
+
+    items.push({
+      category: 'comic',
+      external_id: String(seriesId),
+      title: (series && series.title) || (episode && episode.title) || '(unknown)',
+      creator: episode && episode.title ? String(episode.title) : null,
+      cover_image_url: series && series.thumbnailUrl ? String(series.thumbnailUrl) : null,
+      source_url: episode && episode.permaLink ? String(episode.permaLink) : null,
+      consumed_at: consumedAt,
+      metadata: {
+        series_id: seriesId,
+        episode_id: episode && episode.id ? String(episode.id) : null,
+        episode_title: episode && episode.title ? String(episode.title) : null,
+      },
+    });
+  }
+
+  if (items.length === 0) {
+    banner('shelf-jp: 取り込める履歴がありませんでした', 'err');
+    return;
+  }
+
+  banner('shelf-jp: ' + items.length + ' 件を送信中…');
 
   // --- POST ---
   fetch(API, {
@@ -121,14 +131,14 @@ function renderScript(args: { token: string; apiUrl: string }) {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + TOKEN,
     },
-    body: JSON.stringify({ source: 'scrape_jumpplus', items: unique }),
+    body: JSON.stringify({ source: 'scrape_jumpplus', items: items }),
   })
     .then(async (r) => {
       const text = await r.text();
       let json;
       try { json = JSON.parse(text); } catch { json = { raw: text }; }
       if (r.ok) {
-        banner('shelf-jp: ' + (json.count ?? unique.length) + ' 件を棚に追加しました', 'ok');
+        banner('shelf-jp: ' + (json.count ?? items.length) + ' 件を棚に追加しました', 'ok');
       } else {
         banner('shelf-jp: 失敗 (' + r.status + ') ' + (json.error || text.slice(0, 80)), 'err');
       }
