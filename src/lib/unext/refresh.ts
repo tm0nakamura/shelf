@@ -1,30 +1,19 @@
 import 'server-only'
 
 /**
- * U-NEXT access-token rotation. The web client autorefreshes silently
- * when `_at` nears expiry; we replicate that so the user doesn't have
- * to re-paste their cookies every 11 hours.
+ * U-NEXT access-token rotation via the web client's internal refresh
+ * route — discovered by scraping the JS bundle (see
+ * /api/unext/debug/discover). The route is GET and reads `_rt` straight
+ * off the Cookie header; on success it returns Set-Cookie with a new
+ * `_at` (and rotates `_rt` half the time too). No OAuth2 grant params,
+ * no client secret — the cookie jar is the entire credential.
  *
- * We don't have an officially-documented refresh endpoint, so this
- * tries paths in the order most likely to hit:
- *
- *   1. POST oauth.unext.jp/oauth/token  (RFC 6749 standard)
- *   2. POST oauth.unext.jp/token
- *   3. POST oauth.unext.jp/v1/token
- *
- * On the first 2xx with a JSON access_token we cache nothing — the
- * caller writes the new cookie back to the connection record. On
- * total failure we surface the last error so the UI can nudge the
- * user toward a manual re-paste.
+ * We pass the whole Cookie header rather than just _rt because the
+ * route also looks at related session cookies (current=1, _ut, _st)
+ * and refuses to refresh without them.
  */
 
-const REFRESH_ENDPOINTS = [
-  'https://oauth.unext.jp/oauth/token',
-  'https://oauth.unext.jp/token',
-  'https://oauth.unext.jp/v1/token',
-] as const
-
-const CLIENT_ID = 'unext'
+const REFRESH_URL = 'https://video.unext.jp/api/refreshtoken'
 
 export type RefreshResult = {
   accessToken: string
@@ -33,59 +22,43 @@ export type RefreshResult = {
   expiresAt: number
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
-  if (!refreshToken) throw new Error('refresh_token_missing')
+export async function refreshAccessToken(cookieHeader: string): Promise<RefreshResult> {
+  if (!cookieHeader) throw new Error('cookie_missing')
+  if (!readCookieValue(cookieHeader, '_rt')) throw new Error('refresh_token_missing')
 
-  const errs: string[] = []
-  for (const url of REFRESH_ENDPOINTS) {
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/x-www-form-urlencoded',
-          origin: 'https://video.unext.jp',
-          referer: 'https://video.unext.jp/',
-          'user-agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: refreshToken,
-          client_id: CLIENT_ID,
-        }).toString(),
-      })
+  const r = await fetch(REFRESH_URL, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      accept: 'application/json',
+      cookie: cookieHeader,
+      origin: 'https://video.unext.jp',
+      referer: 'https://video.unext.jp/',
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+    },
+  })
 
-      if (!r.ok) {
-        const body = await r.text().catch(() => '')
-        errs.push(`${url} → ${r.status}: ${body.slice(0, 120)}`)
-        continue
-      }
-
-      const json = (await r.json().catch(() => null)) as
-        | { access_token?: string; refresh_token?: string; expires_in?: number }
-        | null
-      if (!json?.access_token) {
-        errs.push(`${url} → 200 but no access_token in body`)
-        continue
-      }
-
-      const exp = decodeJwtExp(json.access_token)
-      const expiresAt =
-        exp ?? Math.floor(Date.now() / 1000) + (json.expires_in ?? 39600 /* 11h fallback */)
-
-      return {
-        accessToken: json.access_token,
-        refreshToken: json.refresh_token ?? null,
-        expiresAt,
-      }
-    } catch (e) {
-      errs.push(`${url} → ${e instanceof Error ? e.message : String(e)}`)
-    }
+  if (!r.ok) {
+    const body = await r.text().catch(() => '')
+    throw new Error(`refresh_failed_${r.status}: ${body.slice(0, 120)}`)
   }
 
-  throw new Error(`refresh_failed: ${errs.join(' | ')}`)
+  // The new tokens come back as Set-Cookie, not in the JSON body. We
+  // pluck them out so the sync layer can splice them into the stored
+  // cookie header.
+  const setCookie = r.headers.get('set-cookie')
+  const rotated = parseSetCookies(setCookie)
+  const newAt = rotated.get('_at')
+  if (!newAt) {
+    throw new Error('refresh_succeeded_but_no_at_in_set_cookie')
+  }
+  const newRt = rotated.get('_rt') ?? null
+
+  const exp = decodeJwtExp(newAt)
+  const expiresAt = exp ?? Math.floor(Date.now() / 1000) + 39600 /* 11h fallback */
+
+  return { accessToken: newAt, refreshToken: newRt, expiresAt }
 }
 
 /** Sub-second precision isn't worth it; we just need the exp claim. */

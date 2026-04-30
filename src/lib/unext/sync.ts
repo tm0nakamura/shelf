@@ -329,7 +329,7 @@ async function maybeProactiveRefresh(cookieHeader: string): Promise<string> {
   const remaining = exp - Math.floor(Date.now() / 1000)
   if (remaining > REFRESH_LEAD_SECONDS) return cookieHeader
 
-  const refreshed = await refreshAccessToken(rt)
+  const refreshed = await refreshAccessToken(cookieHeader)
   let next = setCookieValue(cookieHeader, '_at', refreshed.accessToken)
   if (refreshed.refreshToken) {
     next = setCookieValue(next, '_rt', refreshed.refreshToken)
@@ -337,14 +337,13 @@ async function maybeProactiveRefresh(cookieHeader: string): Promise<string> {
   return next
 }
 
-/** Best-effort OAuth refresh after a 401 — swallow non-throws. */
+/** Best-effort refresh after the gateway rejects us — swallow non-throws. */
 async function tryReactiveRefresh(
   cookieHeader: string,
 ): Promise<{ accessToken: string; refreshToken: string | null } | null> {
-  const rt = readCookieValue(cookieHeader, '_rt')
-  if (!rt) return null
+  if (!readCookieValue(cookieHeader, '_rt')) return null
   try {
-    const r = await refreshAccessToken(rt)
+    const r = await refreshAccessToken(cookieHeader)
     return { accessToken: r.accessToken, refreshToken: r.refreshToken ?? null }
   } catch (e) {
     console.warn('[unext/sync] reactive refresh failed:', e)
