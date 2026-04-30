@@ -52,11 +52,15 @@ export async function POST(_request: NextRequest) {
   // Stage 1 — scrape candidate URLs + auth-y constants from the JS bundles.
   const { urls, clientIds, clientSecrets } = await scrapeCandidates(stored.cookieHeader)
 
-  // Stage 2 — try every auth style (form / JSON / Basic) × every
-  // candidate client_id we found in the bundle, against every
-  // candidate URL that smells like a token endpoint.
+  // Stage 2 — try every auth style × every candidate client_id we
+  // found in the bundle, against every candidate URL that smells
+  // like a token / refresh endpoint. Filter is intentionally
+  // permissive — `/api/refreshtoken` is a real Next.js route shape
+  // U-NEXT uses but it doesn't match the strict /token/ word-boundary
+  // form, so we accept anything containing `refresh` or `token`.
   const probable = urls.filter((u) =>
-    /(?:^|\/)(token|refresh|renew)(?:\?|$|\/)/i.test(u) ||
+    /refresh/i.test(u) ||
+    /(?:^|\/)token(?:\?|$|\/)/i.test(u) ||
     /\/oauth(?:2)?(?:\/|$)/i.test(u) ||
     /\/v\d+\/auth/i.test(u),
   )
@@ -69,8 +73,21 @@ export async function POST(_request: NextRequest) {
   outer: for (const url of probable) {
     const abs = url.startsWith('http')
       ? [url]
-      : [`https://oauth.unext.jp${url}`, `https://video.unext.jp${url}`]
+      : [`https://video.unext.jp${url}`, `https://oauth.unext.jp${url}`]
     for (const u of abs) {
+      // First, the Next.js-style probe: send the whole Cookie header
+      // (which carries _rt) and try GET + POST with no body. Some
+      // /api/refresh* routes read the refresh token straight off
+      // cookies; no client_id needed.
+      for (const method of ['GET', 'POST'] as const) {
+        const r = await probeCookieOnly(u, stored.cookieHeader, method)
+        results.push(r)
+        if (r.ok) {
+          winner = r
+          break outer
+        }
+      }
+      // Then the OAuth2-style combos.
       for (const cid of clientIdSet) {
         for (const secret of secretSet) {
           for (const style of ['form', 'form_basic', 'json'] as const) {
@@ -169,7 +186,7 @@ async function scrapeCandidates(cookieHeader: string): Promise<{
   }
 }
 
-type ProbeStyle = 'form' | 'form_basic' | 'json'
+type ProbeStyle = 'form' | 'form_basic' | 'json' | 'cookie_get' | 'cookie_post'
 type ProbeResult = {
   url: string
   style: ProbeStyle
@@ -178,6 +195,55 @@ type ProbeResult = {
   ok: boolean
   body_preview?: string
   error?: string
+}
+
+/** Cookie-only probe — many in-house Next.js refresh routes read the
+ * refresh token straight off the cookie jar, no body needed. */
+async function probeCookieOnly(
+  url: string,
+  cookieHeader: string,
+  method: 'GET' | 'POST',
+): Promise<ProbeResult> {
+  try {
+    const r = await fetch(url, {
+      method,
+      cache: 'no-store',
+      headers: {
+        accept: 'application/json',
+        cookie: cookieHeader,
+        origin: 'https://video.unext.jp',
+        referer: 'https://video.unext.jp/',
+        'user-agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+      },
+    })
+    const text = await r.text().catch(() => '')
+    // "Success" here is fuzzier than the OAuth2 case: a Next.js refresh
+    // route might just write Set-Cookie and respond with `{ok:true}`,
+    // not an access_token literal. So we accept any 2xx with either
+    // an access_token in body OR a Set-Cookie that includes _at=.
+    const setCookie = r.headers.get('set-cookie') ?? ''
+    const ok =
+      r.ok &&
+      (/access_token/.test(text) || /(?:^|,\s*|;\s*)_at=/.test(setCookie))
+    return {
+      url,
+      style: method === 'GET' ? 'cookie_get' : 'cookie_post',
+      client_id: '(cookie-only)',
+      status: r.status,
+      ok,
+      body_preview: text.slice(0, 200),
+    }
+  } catch (e) {
+    return {
+      url,
+      style: method === 'GET' ? 'cookie_get' : 'cookie_post',
+      client_id: '(cookie-only)',
+      status: 0,
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
 }
 
 async function probeOne(
