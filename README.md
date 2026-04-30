@@ -221,7 +221,7 @@ supabase/migrations/0001_initial.sql
 - `connections.credentials_encrypted` は AES-256-GCM で暗号化（`bytea` 列に保存）。`TOKEN_ENCRYPTION_KEY` を漏らすとトークンが復号できる
 - `Secret key` (`sb_secret_…`) は絶対にクライアント側に出さない (`src/lib/supabase/admin.ts` は `import 'server-only'` 済み)
 - RLS により `items` / `connections` などはユーザー本人しか書けない
-- `users` と `items` は **公開棚を実現するため select のみ全ユーザー許可**。フォロー機能や非公開棚を入れるときは ALTER POLICY する
+- マイグレーション 0007 から **棚は完全プライベート**：`users` / `items` / `events` の公開 select ポリシーを削除し、本人のみ自分のデータを読める。`/u/[username]` はログイン必須＋オーナーのみ。今後 opt-in な公開棚を入れる場合は `users.shelf_public` フラグ + 部分的な RLS 緩和を計画
 
 ## 次のフェーズ
 

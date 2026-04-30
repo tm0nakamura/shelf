@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Shelf, type Category, type ShelfData, type ShelfItem } from '@/components/shelf/Shelf'
@@ -9,18 +9,29 @@ export default async function ShelfPage({ params }: { params: Promise<{ username
   const { username } = await params
   const supabase = await createClient()
 
-  const [{ data: profile }, { data: userRes }] = await Promise.all([
-    supabase
-      .from('users')
-      .select('id, username, display_name, theme')
-      .eq('username', username)
-      .maybeSingle(),
-    supabase.auth.getUser(),
-  ])
+  // Phase 3 privacy lockdown: the shelf is now strictly private.
+  // Unauthenticated visitors get bounced to /login; logged-in users
+  // who try to peek at someone else's URL hit notFound (we don't even
+  // confirm whether the username exists).
+  const { data: userRes } = await supabase.auth.getUser()
+  if (!userRes.user) {
+    redirect('/login')
+  }
 
-  if (!profile) notFound()
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, username, display_name, theme')
+    .eq('username', username)
+    .maybeSingle()
 
-  const isOwner = userRes.user?.id === profile.id
+  // RLS on `users` only returns auth.uid()'s own row, so any non-owner
+  // lookup yields null here and falls into notFound naturally — but we
+  // also gate explicitly in case RLS gets relaxed later.
+  if (!profile || userRes.user.id !== profile.id) {
+    notFound()
+  }
+
+  const isOwner = true
 
   // Pull a generous slice of recent items, then bucket them per category.
   // We sort by consumed_at desc with acquired_at / added_at fallbacks so the
