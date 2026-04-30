@@ -90,9 +90,36 @@ export function UnextActions({ connected }: { connected: boolean }) {
     }
   }
 
+  async function discoverRefresh() {
+    setSyncMsg('リフレッシュURL 探索中…')
+    const res = await fetch('/api/unext/debug/discover', { method: 'POST' })
+    const json = await res.json().catch(() => ({}))
+    if (res.ok) {
+      if (json.winner) {
+        setSyncMsg(`発見: ${String(json.winner).slice(0, 80)}`)
+      } else {
+        setSyncMsg(`候補 ${json.probed ?? 0} 件試行 / 当たりなし`)
+      }
+      // Always log full results so the operator can copy the winner
+      // (or the closest non-2xx) into refresh.ts.
+      console.log('[unext/discover]', json)
+    } else {
+      setSyncMsg(`探索失敗: ${String(json.error ?? res.status).slice(0, 80)}`)
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       {syncMsg && <span className="text-xs text-white/60">{syncMsg}</span>}
+      <button
+        type="button"
+        onClick={discoverRefresh}
+        disabled={isPending}
+        className="rounded-lg border border-white/10 hover:bg-white/10 text-white/50 hover:text-white text-xs px-2 py-2 disabled:opacity-50"
+        title="JS バンドルから refresh URL を探して試す"
+      >
+        🔍
+      </button>
       <a
         href="/settings/unext/connect"
         className="rounded-lg border border-white/10 hover:bg-white/10 text-white/70 hover:text-white text-xs px-3 py-2"
