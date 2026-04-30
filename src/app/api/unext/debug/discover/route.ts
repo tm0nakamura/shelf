@@ -49,28 +49,61 @@ export async function POST(_request: NextRequest) {
     return NextResponse.json({ error: 'rt_missing' }, { status: 400 })
   }
 
-  // Stage 1 — scrape candidate URLs from the JS bundles.
-  const candidates = await scrapeCandidates(stored.cookieHeader)
+  // Stage 1 — scrape candidate URLs + auth-y constants from the JS bundles.
+  const { urls, clientIds, clientSecrets } = await scrapeCandidates(stored.cookieHeader)
 
-  // Stage 2 — probe each candidate that looks like a token/refresh
-  // endpoint. We try form-urlencoded first (RFC 6749) then JSON.
-  const probable = candidates.filter((u) =>
+  // Stage 2 — try every auth style (form / JSON / Basic) × every
+  // candidate client_id we found in the bundle, against every
+  // candidate URL that smells like a token endpoint.
+  const probable = urls.filter((u) =>
     /(?:^|\/)(token|refresh|renew)(?:\?|$|\/)/i.test(u) ||
-    /\/oauth(?:\/|$)/i.test(u) ||
+    /\/oauth(?:2)?(?:\/|$)/i.test(u) ||
     /\/v\d+\/auth/i.test(u),
   )
-  const results = await probeAll(probable, rt)
-  const winner = results.find((r) => r.ok) ?? null
+
+  const clientIdSet = new Set<string>(['unext', ...clientIds])
+  const secretSet = new Set<string>(['', ...clientSecrets])
+
+  const results: ProbeResult[] = []
+  let winner: ProbeResult | null = null
+  outer: for (const url of probable) {
+    const abs = url.startsWith('http')
+      ? [url]
+      : [`https://oauth.unext.jp${url}`, `https://video.unext.jp${url}`]
+    for (const u of abs) {
+      for (const cid of clientIdSet) {
+        for (const secret of secretSet) {
+          for (const style of ['form', 'form_basic', 'json'] as const) {
+            const r = await probeOne(u, rt, cid, secret, style)
+            results.push(r)
+            if (r.ok) {
+              winner = r
+              break outer
+            }
+          }
+        }
+      }
+    }
+  }
 
   return NextResponse.json({
-    candidates_total: candidates.length,
-    probed: probable.length,
-    results,
-    winner: winner?.url ?? null,
+    candidates_total: urls.length,
+    candidates_urls: urls,
+    bundle_client_ids: Array.from(clientIdSet),
+    bundle_client_secrets_redacted: Array.from(secretSet).map((s) =>
+      s ? `${s.slice(0, 4)}…(${s.length})` : '<empty>',
+    ),
+    probed: results.length,
+    results: results.slice(0, 60), // cap noise
+    winner: winner ? { url: winner.url, style: winner.style, client_id: winner.client_id } : null,
   })
 }
 
-async function scrapeCandidates(cookieHeader: string): Promise<string[]> {
+async function scrapeCandidates(cookieHeader: string): Promise<{
+  urls: string[]
+  clientIds: string[]
+  clientSecrets: string[]
+}> {
   const html = await fetch('https://video.unext.jp/', {
     cache: 'no-store',
     headers: {
@@ -94,81 +127,122 @@ async function scrapeCandidates(cookieHeader: string): Promise<string[]> {
     scriptSrcs.push(`https://video.unext.jp/resources/_next/static/${manifestMatch[1]}/_buildManifest.js`)
   }
 
-  const found = new Set<string>()
+  const foundUrls = new Set<string>()
+  const foundClientIds = new Set<string>()
+  const foundClientSecrets = new Set<string>()
   // Cap at first 20 chunks to stay inside the 60s function ceiling.
   for (const src of scriptSrcs.slice(0, 20)) {
     try {
       const body = await fetch(src, { cache: 'no-store' }).then((r) => r.text())
-      // Match either a fully-qualified https URL or an absolute path
-      // containing one of the auth keywords.
-      const re =
+      // URL extraction (same as before).
+      const reUrl =
         /(?:["'`])(https?:\/\/[^"'`\s]*(?:oauth|token|refresh|renew|auth|session)[^"'`\s]*|\/[a-z0-9_/-]*(?:token|refresh|renew|session)[a-z0-9_/-]*)(?=["'`])/gi
-      for (const m of body.matchAll(re)) {
+      for (const m of body.matchAll(reUrl)) {
         const url = m[1]
-        // Filter trash: relative path-only fragments that are too short
-        // to be useful, and obvious analytics/ad domains.
         if (url.length < 6) continue
         if (/(?:googletagmanager|google-analytics|doubleclick|criteo|facebook|line\.me|yahoo|adtrack|adservice|gum\.criteo|sst-gtm)/i.test(url)) continue
         if (/\.(png|jpg|gif|svg|webp|css)(?:[?#]|$)/i.test(url)) continue
-        found.add(url)
+        foundUrls.add(url)
+      }
+
+      // client_id / client_secret literal strings — minified bundles
+      // commonly inline these as `client_id:"unext_web"` or as keys
+      // in env-style config objects. Catches both kebab and snake forms.
+      const reClientId =
+        /\b(?:client[_-]?id|clientId|CLIENT[_-]?ID)\s*[:=]\s*["']([a-zA-Z0-9_-]{2,64})["']/g
+      for (const m of body.matchAll(reClientId)) {
+        foundClientIds.add(m[1])
+      }
+      const reClientSecret =
+        /\b(?:client[_-]?secret|clientSecret|CLIENT[_-]?SECRET)\s*[:=]\s*["']([a-zA-Z0-9_-]{8,128})["']/g
+      for (const m of body.matchAll(reClientSecret)) {
+        foundClientSecrets.add(m[1])
       }
     } catch {
       // skip
     }
   }
-  return Array.from(found).sort()
+  return {
+    urls: Array.from(foundUrls).sort(),
+    clientIds: Array.from(foundClientIds).sort(),
+    clientSecrets: Array.from(foundClientSecrets),
+  }
 }
 
+type ProbeStyle = 'form' | 'form_basic' | 'json'
 type ProbeResult = {
   url: string
+  style: ProbeStyle
+  client_id: string
   status: number
   ok: boolean
   body_preview?: string
   error?: string
 }
 
-async function probeAll(urls: string[], rt: string): Promise<ProbeResult[]> {
-  const out: ProbeResult[] = []
-  for (const url of urls) {
-    // Skip relative paths — we can't probe those without a host. We try
-    // promoting them onto oauth.unext.jp and video.unext.jp.
-    const abs = url.startsWith('http') ? [url] : [`https://oauth.unext.jp${url}`, `https://video.unext.jp${url}`]
-    for (const candidate of abs) {
-      const r = await probeOne(candidate, rt)
-      out.push(r)
-      if (r.ok) return out // short-circuit on first hit
-    }
+async function probeOne(
+  url: string,
+  rt: string,
+  clientId: string,
+  clientSecret: string,
+  style: ProbeStyle,
+): Promise<ProbeResult> {
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    origin: 'https://video.unext.jp',
+    referer: 'https://video.unext.jp/',
+    'user-agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
   }
-  return out
-}
+  let body: string
 
-async function probeOne(url: string, rt: string): Promise<ProbeResult> {
-  // First attempt: standard OAuth2 form-urlencoded.
-  try {
-    const r = await fetch(url, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/x-www-form-urlencoded',
-        origin: 'https://video.unext.jp',
-        referer: 'https://video.unext.jp/',
-        'user-agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: rt,
-        client_id: 'unext',
-      }).toString(),
-    })
-    const body = await r.text().catch(() => '')
-    const ok = r.ok && /access_token/.test(body)
-    if (ok) {
-      return { url, status: r.status, ok: true, body_preview: body.slice(0, 200) }
+  if (style === 'form') {
+    headers['content-type'] = 'application/x-www-form-urlencoded'
+    const params: Record<string, string> = {
+      grant_type: 'refresh_token',
+      refresh_token: rt,
+      client_id: clientId,
     }
-    return { url, status: r.status, ok: false, body_preview: body.slice(0, 120) }
+    if (clientSecret) params.client_secret = clientSecret
+    body = new URLSearchParams(params).toString()
+  } else if (style === 'form_basic') {
+    headers['content-type'] = 'application/x-www-form-urlencoded'
+    headers['authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+    body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: rt,
+    }).toString()
+  } else {
+    headers['content-type'] = 'application/json'
+    const payload: Record<string, string> = {
+      grant_type: 'refresh_token',
+      refresh_token: rt,
+      client_id: clientId,
+    }
+    if (clientSecret) payload.client_secret = clientSecret
+    body = JSON.stringify(payload)
+  }
+
+  try {
+    const r = await fetch(url, { method: 'POST', cache: 'no-store', headers, body })
+    const text = await r.text().catch(() => '')
+    const ok = r.ok && /access_token/.test(text)
+    return {
+      url,
+      style,
+      client_id: clientId,
+      status: r.status,
+      ok,
+      body_preview: text.slice(0, 200),
+    }
   } catch (e) {
-    return { url, status: 0, ok: false, error: e instanceof Error ? e.message : String(e) }
+    return {
+      url,
+      style,
+      client_id: clientId,
+      status: 0,
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    }
   }
 }
