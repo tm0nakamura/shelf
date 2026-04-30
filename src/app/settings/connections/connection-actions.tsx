@@ -1,7 +1,33 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+
+const UNEXT_LS_KEY = 'unext_creds_v1'
+
+type UnextLocalCreds = {
+  cookieHeader: string
+  zxuid: string
+  zxemp: string
+  pfid?: string | null
+  connectedAt: number
+}
+
+function readUnextLocalCreds(): UnextLocalCreds | null {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(UNEXT_LS_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as UnextLocalCreds
+  } catch {
+    return null
+  }
+}
+
+function writeUnextLocalCreds(creds: UnextLocalCreds): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(UNEXT_LS_KEY, JSON.stringify(creds))
+}
 
 export function SteamActions({ connected }: { connected: boolean }) {
   const router = useRouter()
@@ -54,6 +80,11 @@ export function UnextActions({ connected }: { connected: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [hasLocalCreds, setHasLocalCreds] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    setHasLocalCreds(!!readUnextLocalCreds())
+  }, [])
 
   if (!connected) {
     return (
@@ -66,18 +97,52 @@ export function UnextActions({ connected }: { connected: boolean }) {
     )
   }
 
+  // Connection row exists in DB but localStorage is empty — happens when
+  // the user is on a different browser / cleared their LS / switched
+  // device. Nudge them to re-paste; we can't sync without local creds.
+  if (hasLocalCreds === false) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-amber-300/80">この端末には Cookie 未保存</span>
+        <a
+          href="/settings/unext/connect"
+          className="rounded-lg bg-white text-black font-bold text-sm px-4 py-2 hover:bg-white/90 transition"
+        >
+          再連携
+        </a>
+      </div>
+    )
+  }
+
   async function sync() {
+    const creds = readUnextLocalCreds()
+    if (!creds) {
+      setSyncMsg('Cookie 未保存。再連携してください')
+      setHasLocalCreds(false)
+      return
+    }
     setSyncMsg('同期中…')
-    const res = await fetch('/api/unext/sync', { method: 'POST' })
+    const res = await fetch('/api/unext/sync-passthrough', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cookieHeader: creds.cookieHeader,
+        zxuid: creds.zxuid,
+        zxemp: creds.zxemp,
+      }),
+    })
     const json = await res.json().catch(() => ({}))
     if (res.ok) {
+      // Persist any rotation back into LS so next sync uses fresh tokens.
+      if (json.rotatedCookieHeader) {
+        writeUnextLocalCreds({ ...creds, cookieHeader: json.rotatedCookieHeader })
+      }
       setSyncMsg(
         `+${json.added ?? 0}件 (映画 ${json.episodes ?? 0} / アニメ ${json.anime ?? 0} / ドラマ ${json.drama ?? 0} / 漫画 ${json.comics ?? 0} / 書籍 ${json.books ?? 0})`,
       )
       startTransition(() => router.refresh())
     } else {
       const msg = String(json.error ?? res.status)
-      // Common case: cookies expired → friendlier nudge.
       if (
         /token_expired|token expired|_at_missing|unauthorized|unauthenticated|invalid_token|401|403/i.test(
           msg,
@@ -90,36 +155,9 @@ export function UnextActions({ connected }: { connected: boolean }) {
     }
   }
 
-  async function discoverRefresh() {
-    setSyncMsg('リフレッシュURL 探索中…')
-    const res = await fetch('/api/unext/debug/discover', { method: 'POST' })
-    const json = await res.json().catch(() => ({}))
-    if (res.ok) {
-      if (json.winner) {
-        setSyncMsg(`発見: ${String(json.winner).slice(0, 80)}`)
-      } else {
-        setSyncMsg(`候補 ${json.probed ?? 0} 件試行 / 当たりなし`)
-      }
-      // Always log full results so the operator can copy the winner
-      // (or the closest non-2xx) into refresh.ts.
-      console.log('[unext/discover]', json)
-    } else {
-      setSyncMsg(`探索失敗: ${String(json.error ?? res.status).slice(0, 80)}`)
-    }
-  }
-
   return (
     <div className="flex items-center gap-2">
       {syncMsg && <span className="text-xs text-white/60">{syncMsg}</span>}
-      <button
-        type="button"
-        onClick={discoverRefresh}
-        disabled={isPending}
-        className="rounded-lg border border-white/10 hover:bg-white/10 text-white/50 hover:text-white text-xs px-2 py-2 disabled:opacity-50"
-        title="JS バンドルから refresh URL を探して試す"
-      >
-        🔍
-      </button>
       <a
         href="/settings/unext/connect"
         className="rounded-lg border border-white/10 hover:bg-white/10 text-white/70 hover:text-white text-xs px-3 py-2"

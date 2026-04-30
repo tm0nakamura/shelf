@@ -60,12 +60,18 @@ function classifyVideo(ep: { duration: number; displayNo: string }): 'film' | 'a
 /**
  * Walk U-NEXT's cosmo_getHistoryAll and upsert each row as a shelf item.
  *
+ * Two flavors:
+ *   - syncUnext(id) — credentials live in connections.credentials_encrypted,
+ *     server reads + decrypts + persists rotations.
+ *   - syncUnextPassthrough(id, creds) — credentials live in the user's
+ *     localStorage, get sent up with each request; server uses them in
+ *     memory only and returns any rotation so the client can update LS.
+ *
  * Caveats baked into the design:
  *   - The response carries no consumed_at, so items land with consumed_at=NULL.
  *     The shelf already orders by added_at when consumed_at is missing.
- *   - episodeHistory mixes anime/drama/film. Without another query we can't
- *     tell them apart, so everything goes to category='film'. Refining is a
- *     future step (cosmo_titleInfo per SID).
+ *   - episodeHistory mixes anime/drama/film. We classify via duration +
+ *     displayNo heuristic in classifyVideo().
  *   - bookHistory.books returns one chapter/volume per series. We dedupe on
  *     sakuhinCode so a series only takes one shelf cell.
  */
@@ -82,37 +88,92 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
     throw new Error(`unext connection ${connectionId} not found: ${connErr?.message ?? 'no row'}`)
   }
 
-  const stored = decryptJson<StoredUnextCreds>(
-    (conn as { credentials_encrypted: string | Uint8Array }).credentials_encrypted,
-  )
+  const enc = (conn as { credentials_encrypted: string | Uint8Array | null }).credentials_encrypted
+  if (!enc) {
+    throw new Error('unext_credentials_in_localstorage_not_db: use sync-passthrough')
+  }
+  const stored = decryptJson<StoredUnextCreds>(enc)
 
-  // Token-management state. We start from what was persisted, mutate
-  // through the call (Set-Cookie rotations and OAuth refreshes), then
-  // write any change back at the end of the sync.
-  let cookieHeader = stored.cookieHeader
-  let creds: StoredUnextCreds = stored
-  let credsDirty = false
+  const { result } = await runUnextSync({
+    connectionId,
+    userId: conn.user_id,
+    cookieHeader: stored.cookieHeader,
+    zxuid: stored.zxuid,
+    zxemp: stored.zxemp,
+    persistRotation: (rotated) => {
+      const next: StoredUnextCreds = { ...stored, cookieHeader: rotated }
+      return encryptJson(next)
+    },
+  })
+  return result
+}
 
-  // Proactive refresh — if `_at` expires within 5 minutes, do the OAuth
-  // dance now so the GraphQL call doesn't get an in-flight 401.
+/**
+ * Pass-through variant: caller supplies the cookie header from the user's
+ * browser localStorage; server never persists it. If U-NEXT rotates the
+ * tokens during the call, the rotated header gets returned so the client
+ * can update its local copy.
+ */
+export async function syncUnextPassthrough(
+  connectionId: string,
+  userId: string,
+  inputCreds: { cookieHeader: string; zxuid: string; zxemp: string },
+): Promise<SyncResult & { rotatedCookieHeader: string | null }> {
+  const { result, rotatedCookieHeader } = await runUnextSync({
+    connectionId,
+    userId,
+    cookieHeader: inputCreds.cookieHeader,
+    zxuid: inputCreds.zxuid,
+    zxemp: inputCreds.zxemp,
+    // No DB write for credentials in passthrough mode.
+    persistRotation: null,
+  })
+  return { ...result, rotatedCookieHeader }
+}
+
+type RunSyncArgs = {
+  connectionId: string
+  userId: string
+  cookieHeader: string
+  zxuid: string
+  zxemp: string
+  /** When non-null, rotated credentials get encrypted and written to
+   *  connections.credentials_encrypted at the end of a successful sync. */
+  persistRotation: ((rotated: string) => string) | null
+}
+
+async function runUnextSync(args: RunSyncArgs): Promise<{
+  result: SyncResult
+  rotatedCookieHeader: string | null
+}> {
+  const supabase = adminClient()
+  const { connectionId, userId } = args
+
+  // Token-management state — local to this run. Mutated by Set-Cookie
+  // capture and the proactive/reactive refresh paths.
+  let cookieHeader = args.cookieHeader
+  let cookieDirty = false
+
+  // Proactive refresh — if `_at` expires within 5 minutes, do the
+  // /api/refreshtoken dance now so the GraphQL call doesn't get a
+  // mid-request expiry.
   try {
     const refreshed = await maybeProactiveRefresh(cookieHeader)
     if (refreshed !== cookieHeader) {
       cookieHeader = refreshed
-      creds = { ...creds, cookieHeader: refreshed }
-      credsDirty = true
+      cookieDirty = true
     }
   } catch (e) {
     // Soft-fail: if refresh blew up, fall through to the GraphQL call
-    // with the (possibly expired) token. The 401 path below has its
-    // own retry, and an inert refresh on a still-valid token is fine.
+    // with the (possibly expired) token. The reactive path below has
+    // its own retry, and an inert refresh on a still-valid token is fine.
     console.warn('[unext/sync] proactive refresh failed, continuing:', e)
   }
 
   const ctx: UnextRequestContext = {
     cookieHeader,
-    zxuid: stored.zxuid,
-    zxemp: stored.zxemp,
+    zxuid: args.zxuid,
+    zxemp: args.zxemp,
   }
 
   const startedAt = new Date().toISOString()
@@ -133,8 +194,7 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       const rotated = applySetCookies(ctx.cookieHeader, raw.setCookie)
       if (rotated !== ctx.cookieHeader) {
         ctx.cookieHeader = rotated
-        creds = { ...creds, cookieHeader: rotated }
-        credsDirty = true
+        cookieDirty = true
       }
     }
 
@@ -154,8 +214,7 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       if (newAt.refreshToken) {
         ctx.cookieHeader = setCookieValue(ctx.cookieHeader, '_rt', newAt.refreshToken)
       }
-      creds = { ...creds, cookieHeader: ctx.cookieHeader }
-      credsDirty = true
+      cookieDirty = true
 
       raw = await fetchHistoryAllRaw(ctx, { videoPageSize: 50, bookPageSize: 50 })
       if (raw.status === 401 || raw.status === 403 || isExpiredEnvelope(raw.json)) {
@@ -208,7 +267,7 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
     for (const [sid, ep] of epBySid) {
       const cat = classifyVideo(ep)
       rows.push({
-        user_id: conn.user_id,
+        user_id: userId,
         connection_id: connectionId,
         source: 'unext',
         category: cat,
@@ -240,7 +299,7 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       seenBsd.add(bsd)
       const isComic = b.book?.mediaType?.code === 'COMIC'
       rows.push({
-        user_id: conn.user_id,
+        user_id: userId,
         connection_id: connectionId,
         source: 'unext',
         category: isComic ? 'comic' : 'book',
@@ -275,8 +334,10 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       error_count: 0,
       status: 'active',
     }
-    if (credsDirty) {
-      update.credentials_encrypted = encryptJson(creds)
+    // Only the DB-storage flavor writes rotated credentials back; the
+    // pass-through flavor returns them to the client and never persists.
+    if (cookieDirty && args.persistRotation) {
+      update.credentials_encrypted = args.persistRotation(ctx.cookieHeader)
     }
     await supabase.from('connections').update(update).eq('id', connectionId)
 
@@ -290,6 +351,11 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
       items_failed: 0,
       error_message: null,
     })
+
+    return {
+      result,
+      rotatedCookieHeader: cookieDirty ? ctx.cookieHeader : null,
+    }
   } catch (e) {
     const errMsg = describeError(e)
     console.error('[unext/sync] failed:', e)
@@ -309,8 +375,6 @@ export async function syncUnext(connectionId: string): Promise<SyncResult> {
     })
     throw new Error(errMsg)
   }
-
-  return result
 }
 
 /**

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { ConnectForm } from './connect-form'
 
 export default async function UnextConnectPage() {
   const supabase = await createClient()
@@ -51,28 +52,11 @@ export default async function UnextConnectPage() {
             <li>下のボックスに貼り付け → 「保存して同期」</li>
           </ol>
           <p className="mt-4 text-xs text-white/40">
-            cURL に含まれる Cookie は AES-256-GCM で暗号化して保存します。U-NEXT のアクセストークンは数時間で期限切れになるため、エラー時は再度この手順を踏んでください。
+            <b className="text-white/60">プライバシーモード（v2）</b>：U-NEXT の Cookie はあなたのブラウザの localStorage にのみ保存されます。shelf-jp サーバーは同期する瞬間だけ受け取って通過させ、永続化しません。別の端末・別のブラウザでは再度この手順が必要です。
           </p>
         </section>
 
-        <form action="/api/unext/connect" method="POST" className="space-y-4">
-          <label className="block">
-            <span className="block text-xs font-bold text-white/50 mb-2">cURL をここに貼り付け</span>
-            <textarea
-              name="paste"
-              required
-              rows={10}
-              placeholder={`curl 'https://cc.unext.jp/?zxuid=...&zxemp=...&operationName=cosmo_getHistoryAll&...' \\\n  -H 'apollographql-client-name: cosmo' \\\n  -b '_at=...; _rt=...; ...' \\\n  ...`}
-              className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-white/30"
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded-lg bg-white text-black font-bold text-sm px-5 py-2.5 hover:bg-white/90 transition"
-          >
-            保存して同期
-          </button>
-        </form>
+        <ConnectForm />
       </div>
     </main>
   )
