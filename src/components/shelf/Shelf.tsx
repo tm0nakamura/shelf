@@ -102,7 +102,7 @@ export function Shelf({ data }: { data: ShelfData }) {
           <div className={styles.avatar}>{data.display_name.slice(0, 1).toUpperCase()}</div>
           <div className={styles.name}>
             <div className={styles.handle}>{data.display_name}</div>
-            <div className={styles.url}>shelf.app/{data.username}</div>
+            <div className={styles.url}>タナログ / {data.username}</div>
           </div>
           <div className={styles.theme} />
         </div>

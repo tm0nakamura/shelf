@@ -59,29 +59,29 @@ function renderScript(args: { token: string; apiUrl: string }) {
   };
 
   if (!TOKEN) {
-    banner('shelf-jp: トークンが空です。設定ページから bookmarklet を保存し直してください。', 'err');
+    banner('タナログ: トークンが空です。設定ページから bookmarklet を保存し直してください。', 'err');
     return;
   }
   if (!/shonenjumpplus\\.com$/.test(location.hostname.replace(/^www\\./, ''))) {
-    banner('shelf-jp: ジャンプ+のページで実行してください', 'err');
+    banner('タナログ: ジャンプ+のページで実行してください', 'err');
     return;
   }
 
   // --- Read localStorage.history_manager ---
   const raw = localStorage.getItem('history_manager');
   if (!raw) {
-    banner('shelf-jp: history_manager が空です。Jump+ で何か1話読んでから再実行してください', 'err');
+    banner('タナログ: history_manager が空です。Jump+ で何か1話読んでから再実行してください', 'err');
     return;
   }
   let history;
   try {
     history = JSON.parse(raw);
   } catch (e) {
-    banner('shelf-jp: history_manager の JSON パースに失敗 — ' + e.message, 'err');
+    banner('タナログ: history_manager の JSON パースに失敗 — ' + e.message, 'err');
     return;
   }
   if (!Array.isArray(history) || history.length === 0) {
-    banner('shelf-jp: history_manager が空配列です', 'err');
+    banner('タナログ: history_manager が空配列です', 'err');
     return;
   }
 
@@ -118,11 +118,11 @@ function renderScript(args: { token: string; apiUrl: string }) {
   }
 
   if (items.length === 0) {
-    banner('shelf-jp: 取り込める履歴がありませんでした', 'err');
+    banner('タナログ: 取り込める履歴がありませんでした', 'err');
     return;
   }
 
-  banner('shelf-jp: ' + items.length + ' 件を送信中…');
+  banner('タナログ: ' + items.length + ' 件を送信中…');
 
   // --- POST ---
   fetch(API, {
@@ -138,13 +138,13 @@ function renderScript(args: { token: string; apiUrl: string }) {
       let json;
       try { json = JSON.parse(text); } catch { json = { raw: text }; }
       if (r.ok) {
-        banner('shelf-jp: ' + (json.count ?? items.length) + ' 件を棚に追加しました', 'ok');
+        banner('タナログ: ' + (json.count ?? items.length) + ' 件を棚に追加しました', 'ok');
       } else {
-        banner('shelf-jp: 失敗 (' + r.status + ') ' + (json.error || text.slice(0, 80)), 'err');
+        banner('タナログ: 失敗 (' + r.status + ') ' + (json.error || text.slice(0, 80)), 'err');
       }
     })
     .catch((e) => {
-      banner('shelf-jp: ネットワークエラー — ' + e.message, 'err');
+      banner('タナログ: ネットワークエラー — ' + e.message, 'err');
     });
 })();`
 }

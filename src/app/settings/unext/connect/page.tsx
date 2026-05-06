@@ -52,7 +52,7 @@ export default async function UnextConnectPage() {
             <li>下のボックスに貼り付け → 「保存して同期」</li>
           </ol>
           <p className="mt-4 text-xs text-white/40">
-            <b className="text-white/60">プライバシーモード（v2）</b>：U-NEXT の Cookie はあなたのブラウザの localStorage にのみ保存されます。shelf-jp サーバーは同期する瞬間だけ受け取って通過させ、永続化しません。別の端末・別のブラウザでは再度この手順が必要です。
+            <b className="text-white/60">プライバシーモード（v2）</b>：U-NEXT の Cookie はあなたのブラウザの localStorage にのみ保存されます。タナログのサーバーは同期する瞬間だけ受け取って通過させ、永続化しません。別の端末・別のブラウザでは再度この手順が必要です。
           </p>
         </section>
 

@@ -28,7 +28,7 @@ const notoSerif = Noto_Serif_JP({
 })
 
 export const metadata: Metadata = {
-  title: 'shelf — 消費コンテンツの足跡',
+  title: 'タナログ — 消費コンテンツの足跡',
   description: '日々触れた音楽・本・映画・漫画・ライブ・ゲームの足跡を、自動で集めて棚にする。',
 }
 

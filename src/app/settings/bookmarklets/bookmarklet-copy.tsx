@@ -5,7 +5,7 @@ import { useState } from 'react'
 const BOOKMARKLETS = [
   {
     key: 'jumpplus',
-    label: '少年ジャンプ+ → shelf',
+    label: '少年ジャンプ+ → タナログ',
     description:
       'ジャンプ+の マイページ / お気に入り を開いた状態でクリック → 「漫画」カテゴリにアイテムが入ります。',
     where: 'shonenjumpplus.com/my',

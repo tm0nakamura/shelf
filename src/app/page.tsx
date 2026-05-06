@@ -19,8 +19,8 @@ export default async function Home() {
 
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center bg-[#14110f] text-white px-6 text-center">
-      <h1 className="font-serif text-7xl font-light italic tracking-tight">
-        shelf
+      <h1 className="font-serif text-6xl sm:text-7xl font-light italic tracking-tight">
+        タナログ
       </h1>
       <p className="mt-6 text-sm text-white/55 max-w-md leading-relaxed tracking-wide">
         日々触れた音楽・本・映画・漫画・ライブ・ゲームの足跡を、<br />
